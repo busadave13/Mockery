@@ -1,6 +1,6 @@
 # Mockery
 
-A REST API service for serving HTTP mock responses with support for both local file system (development) and Git-based storage (production). Mockery enables:
+REST API service for serving HTTP mock responses with support for both local file system (development) and Git-based storage (production). Mockery enables:
 
 - **Local Development**: Instant testing with file system-based mocks (no Git setup required)
 - **Production**: Full Git workflow management (commits, pull requests, version control)
