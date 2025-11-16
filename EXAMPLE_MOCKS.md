@@ -1,6 +1,13 @@
 # Example Mock Repository Structure
 
-This document shows how to set up a separate Git repository containing your mock files.
+This document shows how to set up a separate Git repository containing your mock files for **production/Git mode**.
+
+> **Note for Local Development:** If you're running Mockery locally in development mode, you don't need a separate Git repository. Simply create mock files in the `.mocks/` directory at the project root. See the main [README.md](README.md) for local development setup.
+
+This guide is for teams who want to:
+- Deploy Mockery in production/staging with Git-based mock management
+- Share mocks across team members via Git workflows
+- Version control their mock responses
 
 ## Repository Structure
 
@@ -124,7 +131,7 @@ Once you've created this repository and configured Mockery to use it, you can ma
 
 ### Get User (200 OK)
 ```bash
-curl -H "X-Mock-ID: UserService/get-user" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: UserService/get-user" http://localhost:3000/api/mock
 ```
 
 Response:
@@ -146,16 +153,16 @@ Headers include:
 
 ### Create User (201 Created)
 ```bash
-curl -H "X-Mock-ID: UserService/create-user" \
+curl -i -H "X-Mock-ID: UserService/create-user" \
      -H "X-Mock-StatusCode: 201" \
-     http://localhost:8080/api/mock
+     http://localhost:3000/api/mock
 ```
 
 ### User Not Found (404)
 ```bash
-curl -H "X-Mock-ID: UserService/user-not-found" \
+curl -i -H "X-Mock-ID: UserService/user-not-found" \
      -H "X-Mock-StatusCode: 404" \
-     http://localhost:8080/api/mock
+     http://localhost:3000/api/mock
 ```
 
 Response: Empty body (404 semantics)
@@ -166,9 +173,9 @@ Headers include:
 
 ### Server Error (500)
 ```bash
-curl -H "X-Mock-ID: ProductService/error-response" \
+curl -i -H "X-Mock-ID: ProductService/error-response" \
      -H "X-Mock-StatusCode: 500" \
-     http://localhost:8080/api/mock
+     http://localhost:3000/api/mock
 ```
 
 Response:
@@ -183,8 +190,8 @@ Response:
 
 ### Random Selection
 ```bash
-curl -H "X-Mock-ID: PaymentService/success,PaymentService/failed,PaymentService/pending" \
-     http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: PaymentService/success,PaymentService/failed,PaymentService/pending" \
+     http://localhost:3000/api/mock
 ```
 
 This will randomly return one of the three payment responses.
@@ -216,10 +223,39 @@ git push -u origin main
 ```
 
 5. Configure Mockery to use your repository:
-```bash
-export GIT_REPOSITORY_URL="https://github.com/your-org/mockery-mocks.git"
-export GIT_BRANCH="main"
-export GIT_CLONE_PATH="/app/mocks"
-```
+
+   **Option A: Via Environment Variables (Docker/Production)**
+   ```bash
+   export GIT_REPOSITORY_URL="https://github.com/your-org/mockery-mocks.git"
+   export GIT_BRANCH="main"
+   export GIT_CLONE_PATH="/app/mocks"
+   ```
+
+   **Option B: Via Configuration File**
+
+   Update `appsettings.Production.json` (or create it):
+   ```json
+   {
+     "MockRepository": {
+       "Type": "Git"
+     }
+   }
+   ```
+
+   Then set the environment variables as above.
 
 6. Run Mockery and start using your mocks!
+
+## Switching Between Local and Git Mode
+
+**For Local Development (Default):**
+- Uses `appsettings.Development.json` with `"Type": "Local"`
+- Mocks loaded from `.mocks/` directory
+- No environment variables needed
+- Run with: `dotnet run`
+
+**For Production/Git Mode:**
+- Set `"Type": "Git"` in configuration or omit (defaults to Git)
+- Set environment variables: `GIT_REPOSITORY_URL`, `GIT_BRANCH`, `GIT_CLONE_PATH`
+- Mocks loaded from Git repository
+- Run with: `dotnet run --environment Production`

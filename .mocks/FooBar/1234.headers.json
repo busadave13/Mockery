@@ -1,0 +1,5 @@
+{
+  "X-Custom-Header": "CustomValue",
+  "X-Request-ID": "abc-123-def-456",
+  "X-Service-Version": "1.0.0"
+}

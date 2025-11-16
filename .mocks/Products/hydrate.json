@@ -1,0 +1,27 @@
+{
+  "products": [
+    {
+      "id": 101,
+      "name": "Laptop",
+      "price": 999.99,
+      "inStock": true,
+      "category": "Electronics"
+    },
+    {
+      "id": 102,
+      "name": "Wireless Mouse",
+      "price": 29.99,
+      "inStock": true,
+      "category": "Accessories"
+    },
+    {
+      "id": 103,
+      "name": "USB-C Cable",
+      "price": 14.99,
+      "inStock": false,
+      "category": "Accessories"
+    }
+  ],
+  "total": 3,
+  "page": 1
+}

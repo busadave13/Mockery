@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "PRODUCT_NOT_FOUND",
+    "message": "The requested product could not be found",
+    "details": "Product ID does not exist in the database",
+    "timestamp": "2025-01-15T12:00:00Z"
+  }
+}

@@ -1,8 +1,8 @@
 # Base image
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
-EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 3000
+ENV ASPNETCORE_URLS=http://+:3000
 
 # Install Git for LibGit2Sharp
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
