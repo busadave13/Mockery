@@ -1,0 +1,11 @@
+{
+  "name": "My Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "docker-in-docker": "latest"
+  },
+  "forwardPorts": [3000],
+  "postCreateCommand": "docker --version"
+}
