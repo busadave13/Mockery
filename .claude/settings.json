@@ -1,0 +1,12 @@
+{
+    "permissions": {
+        "deny": [
+            "Read(.git/**)",
+            "Read(./bin/**)",
+            "Read(./obj/**)",
+            "Read(./.vs/**)",
+            "Read(./packages/**)",
+            "Read(./.env*)"
+        ]
+    }
+}
