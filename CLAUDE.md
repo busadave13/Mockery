@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mockery is a Git-based REST API service for serving HTTP mock responses. It provides a single GET endpoint that retrieves mock files from a Git repository, enabling teams to manage mocks through standard Git workflows (commits, pull requests, version control). The service is built with ASP.NET Core 9.0+ and uses LibGit2Sharp for Git operations, with no database or authentication required.
+Mockery is a REST API service for serving HTTP mock responses. It provides a single GET endpoint that retrieves mock files from either a local file system (development) or a Git repository (production). This enables teams to:
+
+- **Development**: Quickly test locally with immediate mock file changes (no Git setup required)
+- **Production**: Manage mocks through standard Git workflows (commits, pull requests, version control)
+
+The service is built with ASP.NET Core 9.0+ and uses LibGit2Sharp for Git operations in production mode. No database or authentication required.
 
 ## Build and Development Commands
 
@@ -24,22 +29,67 @@ cd src
 dotnet test
 ```
 
-### Running Locally
+### Running Locally (Development Mode)
+
+**Local development uses the local file system** - no Git setup required!
+
 ```bash
-# Run application from src/Mockery
+# 1. Run application from src/Mockery
 cd src/Mockery
 dotnet run
 
-# Application will listen on http://localhost:8080 by default
+# Application will listen on http://localhost:3000 by default
+# Mocks are loaded from .mocks/ directory at project root
 ```
 
+**Quick Start - Sample Mocks Included:**
+The repository includes sample mocks in `.mocks/` that work immediately:
+- `FooBar/1234` - JSON response with custom headers
+- `FooBar/5678` - HTML response
+- `Products/hydrate` - Product catalog
+- `Products/error` - Error response
+
+**How It Works:**
+- Development mode is configured in `appsettings.Development.json`
+- Mock files are read directly from `.mocks/` directory
+- No Git operations performed (clone/pull disabled)
+- Changes to mock files are picked up immediately (no restart needed)
+- New mocks can be added by creating files in the `.mocks/` directory
+
 ### Docker Commands
+
+#### Development Mode (Local File System)
 ```bash
 # Build Docker image
-docker build -t dasacr.azurecr.io/mockery:latest -f src/Mockery/Dockerfile .
+docker build -t mockery:latest .
 
-# Run container
-docker run -d -p 8080:8080 \
+# Run container with local .mocks directory
+docker run -d --name mockery -p 3000:3000 \
+  -v "$(pwd)/.mocks:/app/mocks/mocks" \
+  -e ASPNETCORE_ENVIRONMENT=Development \
+  mockery:latest
+
+# On Windows, use absolute path:
+docker run -d --name mockery -p 3000:3000 \
+  -v "C:\path\to\Mockery\.mocks:/app/mocks/mocks" \
+  -e ASPNETCORE_ENVIRONMENT=Development \
+  mockery:latest
+
+# Test the endpoints
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:3000/api/mock
+
+# Stop and remove container
+docker stop mockery && docker rm mockery
+```
+
+#### Production Mode (Git Repository)
+```bash
+# Build Docker image
+docker build -t dasacr.azurecr.io/mockery:latest .
+
+# Run container with Git repository
+docker run -d -p 3000:3000 \
   -e GIT_REPOSITORY_URL="https://github.com/your-org/mockery-mocks.git" \
   -e GIT_BRANCH="main" \
   -e GIT_CLONE_PATH="/app/mocks" \
@@ -49,14 +99,59 @@ docker run -d -p 8080:8080 \
 ### Testing Mock Endpoints
 ```bash
 # Single mock ID (default 200 OK)
-curl -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
 
 # Multiple mock IDs (random selection)
-curl -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/9012" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/9012" http://localhost:3000/api/mock
 
 # With custom status code
-curl -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:3000/api/mock
 ```
+
+## Repository Modes
+
+Mockery supports two repository modes:
+
+### Local Mode (Development)
+
+**Configuration:** Set in `appsettings.Development.json`:
+```json
+{
+  "MockRepository": {
+    "Type": "Local",
+    "LocalPath": "./.mocks"
+  }
+}
+```
+
+**Characteristics:**
+- Uses `LocalFileMockRepository` implementation
+- Reads mocks directly from local file system (`.mocks/` directory)
+- No Git operations (no clone, pull, or LibGit2Sharp dependencies)
+- Changes to mock files are immediately available
+- Ideal for local development and testing
+
+**Setup:**
+1. Create mock files in `.mocks/{ServiceName}/{FileId}.{extension}`
+2. Run `dotnet run` - no environment variables needed
+3. Mock files can be edited while the service is running
+
+### Git Mode (Production)
+
+**Configuration:** Set `MockRepository.Type` to `"Git"` or omit the section entirely (defaults to Git mode).
+
+**Environment Variables Required:**
+- `GIT_REPOSITORY_URL`: URL of Git repository containing mock files
+- `GIT_BRANCH`: Git branch to use (default: `main`)
+- `GIT_CLONE_PATH`: Local file system path for repository clone (e.g., `/app/mocks`)
+- `GIT_ACCESS_TOKEN`: Personal access token for private repositories (optional for public repos)
+
+**Characteristics:**
+- Uses `GitMockRepository` implementation
+- Clones Git repository on startup
+- Pulls latest changes when repository already exists
+- Mocks managed through Git workflows (commits, PRs, version control)
+- Ideal for production, staging, and shared environments
 
 ## Architecture
 
@@ -106,10 +201,13 @@ mocks/
 - Coordinate between repository layer and content-type resolution
 
 **Repository Layer** (`src/Mockery/Repository/`):
-- `IGitMockRepository` interface and `GitMockRepository` implementation
+- `IGitMockRepository` interface with two implementations:
+  - `GitMockRepository`: Git-based operations (clone, pull/refresh via LibGit2Sharp)
+  - `LocalFileMockRepository`: Local file system access (no Git operations)
+- `FileSystemMockRepositoryBase`: Abstract base class containing shared file lookup logic
 - Direct file lookup using path: `mocks/{ServiceName}/{FileId}.*`
 - Optional headers file lookup: `mocks/{ServiceName}/{FileId}.headers.json`
-- Git operations: clone, pull/refresh via LibGit2Sharp
+- Implementation selected at startup based on `MockRepository.Type` configuration
 
 **Supporting Services** (`src/Mockery/Services/`):
 - `ContentTypeResolver`: Maps file extensions to MIME types (.json → application/json, .html → text/html)
@@ -128,13 +226,23 @@ mocks/
 
 ### Configuration and Environment Variables
 
-**Required Environment Variables:**
+**Repository Mode Configuration (appsettings.json):**
+```json
+{
+  "MockRepository": {
+    "Type": "Local",        // "Local" for development, "Git" for production
+    "LocalPath": "./mocks"  // Used in Local mode only
+  }
+}
+```
+
+**Environment Variables (Git Mode Only):**
 - `GIT_REPOSITORY_URL`: URL of Git repository containing mock files
 - `GIT_BRANCH`: Git branch to use (default: `main`)
 - `GIT_CLONE_PATH`: Local file system path for repository clone (e.g., `/app/mocks`)
 - `GIT_ACCESS_TOKEN`: Personal access token for private repositories (optional for public repos)
 
-**Optional Configuration (appsettings.json):**
+**Rate Limiting Configuration (appsettings.json):**
 ```json
 {
   "RateLimiting": {
@@ -198,12 +306,16 @@ src/Mockery.Test/
 │   ├── ContentTypeResolverTests.cs
 │   └── RandomMockSelectorTests.cs
 └── Repository/
-    └── GitMockRepositoryTests.cs
+    ├── GitMockRepositoryTests.cs
+    └── LocalFileMockRepositoryTests.cs
 ```
 
-**Unit Testing:** Use Moq to mock `IGitMockRepository`, test status code semantics and random selection
+**Unit Testing:**
+- Use Moq to mock `IGitMockRepository`
+- Test status code semantics and random selection
+- Repository tests use temporary directories for file system operations
 
-**Integration Testing:** Use `WebApplicationFactory<Program>` for end-to-end testing with temporary Git repository
+**Integration Testing:** Use `WebApplicationFactory<Program>` for end-to-end testing
 
 ### Health Check Endpoints
 
@@ -235,7 +347,23 @@ Used by Kubernetes/container orchestrators for health monitoring.
 
 ## Common Development Patterns
 
-### Adding a New Mock
+### Adding a New Mock (Local Development)
+
+For local development (default when running `dotnet run`):
+
+1. Navigate to project root: `cd C:\Users\daveh\source\Mockery`
+2. Create service folder if needed: `mkdir -p .mocks/MyService`
+3. Create mock file: `echo '{"status":"success"}' > .mocks/MyService/1234.json`
+4. Optionally create headers file: `echo '{"X-Custom-Header":"value"}' > .mocks/MyService/1234.headers.json`
+5. Test immediately - no restart needed!
+
+```bash
+curl -i -H "X-Mock-ID: MyService/1234" http://localhost:3000/api/mock
+```
+
+### Adding a New Mock (Production/Git Mode)
+
+For production or when using Git mode:
 
 1. Clone mock repository locally
 2. Create service folder if needed: `mkdir mocks/MyService`
@@ -255,7 +383,10 @@ Used by Kubernetes/container orchestrators for health monitoring.
 ### Adding Repository Methods
 
 1. Add method to `IGitMockRepository` interface
-2. Implement in `GitMockRepository` class
-3. Use LibGit2Sharp for Git operations
-4. Use direct file path lookup: `mocks/{ServiceName}/{FileId}.*`
+2. Decide if the method should be:
+   - In the base class `FileSystemMockRepositoryBase` (shared file operations)
+   - Specific to `GitMockRepository` (Git operations only)
+   - Specific to `LocalFileMockRepository` (local-only operations)
+3. For Git-specific operations: Use LibGit2Sharp in `GitMockRepository`
+4. For file operations: Use direct file path lookup in base class: `mocks/{ServiceName}/{FileId}.*`
 5. Handle file not found scenarios gracefully

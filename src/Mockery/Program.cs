@@ -7,14 +7,33 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Git repository options from environment variables
-builder.Services.Configure<GitRepositoryOptions>(options =>
+// Read repository configuration from appsettings
+var mockRepoSettings = builder.Configuration.GetSection("MockRepository").Get<MockRepositorySettings>()
+    ?? new MockRepositorySettings();
+
+// Configure repository options based on repository type
+if (mockRepoSettings.Type.Equals("Local", StringComparison.OrdinalIgnoreCase))
 {
-    options.RepositoryUrl = Environment.GetEnvironmentVariable("GIT_REPOSITORY_URL") ?? "";
-    options.Branch = Environment.GetEnvironmentVariable("GIT_BRANCH") ?? "main";
-    options.ClonePath = Environment.GetEnvironmentVariable("GIT_CLONE_PATH") ?? "/app/mocks";
-    options.AccessToken = Environment.GetEnvironmentVariable("GIT_ACCESS_TOKEN") ?? "";
-});
+    // Local development mode - use local file system
+    builder.Services.Configure<GitRepositoryOptions>(options =>
+    {
+        options.ClonePath = mockRepoSettings.LocalPath;
+        options.RepositoryUrl = ""; // Not used in local mode
+        options.Branch = "main";
+        options.AccessToken = "";
+    });
+}
+else
+{
+    // Git mode (production) - use environment variables
+    builder.Services.Configure<GitRepositoryOptions>(options =>
+    {
+        options.RepositoryUrl = Environment.GetEnvironmentVariable("GIT_REPOSITORY_URL") ?? "";
+        options.Branch = Environment.GetEnvironmentVariable("GIT_BRANCH") ?? "main";
+        options.ClonePath = Environment.GetEnvironmentVariable("GIT_CLONE_PATH") ?? "/app/mocks";
+        options.AccessToken = Environment.GetEnvironmentVariable("GIT_ACCESS_TOKEN") ?? "";
+    });
+}
 
 // Configure rate limiting from appsettings
 builder.Services.Configure<RateLimitingOptions>(
@@ -25,8 +44,15 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Add application services
-builder.Services.AddSingleton<IGitMockRepository, GitMockRepository>();
+// Add application services - register appropriate repository based on configuration
+if (mockRepoSettings.Type.Equals("Local", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IGitMockRepository, LocalFileMockRepository>();
+}
+else
+{
+    builder.Services.AddSingleton<IGitMockRepository, GitMockRepository>();
+}
 builder.Services.AddScoped<IMockService, MockService>();
 builder.Services.AddSingleton<IContentTypeResolver, ContentTypeResolver>();
 
@@ -35,16 +61,33 @@ builder.Services.AddHealthChecks()
     .AddCheck("live", () => HealthCheckResult.Healthy("Application is alive"))
     .AddCheck("ready", () =>
     {
-        // Check if Git repository is accessible
-        var gitOptions = builder.Configuration.GetSection("GitRepository").Get<GitRepositoryOptions>();
-        var clonePath = Environment.GetEnvironmentVariable("GIT_CLONE_PATH") ?? "/app/mocks";
+        // Check if mock repository is accessible (either Git or Local)
+        string clonePath;
+        bool isLocal = mockRepoSettings.Type.Equals("Local", StringComparison.OrdinalIgnoreCase);
 
-        if (Directory.Exists(Path.Combine(clonePath, ".git")))
+        if (isLocal)
+        {
+            clonePath = mockRepoSettings.LocalPath;
+        }
+        else
+        {
+            clonePath = Environment.GetEnvironmentVariable("GIT_CLONE_PATH") ?? "/app/mocks";
+        }
+
+        var mocksPath = Path.Combine(clonePath, "mocks");
+
+        // For local mode, check if mocks directory exists
+        // For Git mode, check if .git directory exists
+        if (isLocal && Directory.Exists(mocksPath))
+        {
+            return HealthCheckResult.Healthy("Local mock repository is accessible");
+        }
+        else if (!isLocal && Directory.Exists(Path.Combine(clonePath, ".git")))
         {
             return HealthCheckResult.Healthy("Git repository is accessible");
         }
 
-        return HealthCheckResult.Unhealthy("Git repository not accessible");
+        return HealthCheckResult.Unhealthy($"Mock repository not accessible (Type: {mockRepoSettings.Type})");
     })
     .AddCheck("startup", () => HealthCheckResult.Healthy("Application startup complete"));
 
@@ -61,18 +104,19 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Initialize Git repository on startup
+// Initialize mock repository on startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 try
 {
-    logger.LogInformation("Initializing Git repository...");
+    var repoType = mockRepoSettings.Type.Equals("Local", StringComparison.OrdinalIgnoreCase) ? "Local" : "Git";
+    logger.LogInformation("Initializing {RepositoryType} mock repository...", repoType);
     var repository = app.Services.GetRequiredService<IGitMockRepository>();
     await repository.InitializeAsync();
-    logger.LogInformation("Git repository initialized successfully");
+    logger.LogInformation("{RepositoryType} mock repository initialized successfully", repoType);
 }
 catch (Exception ex)
 {
-    logger.LogError(ex, "Failed to initialize Git repository");
+    logger.LogError(ex, "Failed to initialize mock repository");
     // Continue running - health checks will report unhealthy status
 }
 

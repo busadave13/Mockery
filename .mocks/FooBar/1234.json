@@ -1,0 +1,10 @@
+{
+  "status": "success",
+  "message": "Mock response from FooBar service",
+  "data": {
+    "id": 1234,
+    "name": "Sample Item",
+    "description": "This is a sample mock response for testing purposes",
+    "timestamp": "2025-01-15T12:00:00Z"
+  }
+}
