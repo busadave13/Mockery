@@ -1,11 +1,11 @@
 {
-  "name": "My Dev Container",
+  "name": "Mockery",
   "build": {
-    "dockerfile": "Dockerfile"
+    "dockerfile": "../Dockerfile"
   },
   "features": {
     "docker-in-docker": "latest"
   },
   "forwardPorts": [3000],
-  "postCreateCommand": "docker --version"
+  "postCreateCommand": "docker --info"
 }
