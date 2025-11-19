@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  mockery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mockery
+    env_file: .env
+    ports:
+      - "3000:3000"
+    environment:
+      # Git Repository Configuration
+      - GIT_REPOSITORY_URL=${GIT_REPOSITORY_URL}
+      - GIT_BRANCH=${GIT_BRANCH:-main}
+      - GIT_CLONE_PATH=/mocks
+      - GIT_ACCESS_TOKEN=${GIT_ACCESS_TOKEN}
+
+      # ASP.NET Core Environment
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:3000
+
+    # Optional: Persist cloned repository across container restarts
+    volumes:
+      - mockery-data:/mocks
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    restart: unless-stopped
+
+volumes:
+  mockery-data:
+    driver: local

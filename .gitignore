@@ -68,3 +68,6 @@ dlldata.c
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Environment variables
+.env
