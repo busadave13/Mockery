@@ -309,3 +309,13 @@ Repository  MockRepository
 ## License
 
 MIT
+
+
+az ad sp create-for-rbac --name "github-actions-connector" --role contributor --scopes /subscriptions/79a9ae56-fcc2-4717-a184-a409adf7d669/resourceGroups/global
+
+{
+  "appId": "fa04f127-5cd8-47c9-b94a-a1c1a07c10cb",
+  "displayName": "github-actions-connector",
+  "password": "3Rp8Q~DgjHw2Hlg_QaScoDKD82gRCbJZK7J43db-",
+  "tenant": "63d0f08e-6579-4d52-9c95-4baef66906ea"
+}
