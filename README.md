@@ -106,22 +106,22 @@ docker-compose down
 
 ### Using Pre-built Docker Images
 
-Pull and run the latest published image from Docker Hub:
+Pull and run the latest published image from GitHub Container Registry:
 
 ```bash
 # Pull latest version
-docker pull davhar/mockery:latest
+docker pull ghcr.io/busadave13/mockery:latest
 
 # Run the image (Git repository configured in appsettings.Production.json)
 docker run -d --name mockery -p 8080:8080 \
   -v mockery-data:/app/mocks \
-  davhar/mockery:latest
+  ghcr.io/busadave13/mockery:latest
 
 # Or use a specific version
-docker pull davhar/mockery:1.0.0
+docker pull ghcr.io/busadave13/mockery:1.0.0
 docker run -d --name mockery -p 8080:8080 \
   -v mockery-data:/app/mocks \
-  davhar/mockery:1.0.0
+  ghcr.io/busadave13/mockery:1.0.0
 
 # Stop and remove
 docker stop mockery && docker rm mockery
@@ -129,29 +129,29 @@ docker stop mockery && docker rm mockery
 
 **Note:** Pre-built images use the Git configuration baked into `appsettings.Production.json` at build time. To use a custom Git repository, build your own image with updated configuration.
 
-### Publishing Docker Images to Docker Hub
+### Publishing Docker Images to GitHub Container Registry
 
-To publish your own Docker image to Docker Hub:
+To publish your own Docker image to GitHub Container Registry:
 
 ```bash
-# 1. Login to Docker Hub
-docker login -u davhar
+# 1. Login to GitHub Container Registry
+docker login ghcr.io -u busadave13
 
-# You'll be prompted for your password or access token
+# You'll be prompted for your personal access token
 
 # 2. Build the image with your repository URL and Git configuration
 # Make sure src/Mockery/appsettings.Production.json has the correct Git repository
-docker build -t davhar/mockery:latest .
+docker build -t ghcr.io/busadave13/mockery:latest .
 
 # 3. Optionally tag with a version number
-docker tag davhar/mockery:latest davhar/mockery:1.0.0
+docker tag ghcr.io/busadave13/mockery:latest ghcr.io/busadave13/mockery:1.0.0
 
-# 4. Push to Docker Hub
-docker push davhar/mockery:latest
-docker push davhar/mockery:1.0.0
+# 4. Push to GitHub Container Registry
+docker push ghcr.io/busadave13/mockery:latest
+docker push ghcr.io/busadave13/mockery:1.0.0
 
 # 5. Verify the image was pushed
-docker pull davhar/mockery:latest
+docker pull ghcr.io/busadave13/mockery:latest
 ```
 
 **Important:**
@@ -159,10 +159,11 @@ docker pull davhar/mockery:latest
 - The Git configuration is baked into the image at build time
 - Use semantic versioning for version tags (e.g., 1.0.0, 1.1.0)
 - Always push both `latest` and a specific version tag
+- Requires GitHub personal access token with `packages:write` permission
 
-### Publishing Helm Charts to Docker Hub
+### Publishing Helm Charts to GitHub Container Registry
 
-To publish the Helm chart as an OCI artifact to Docker Hub:
+To publish the Helm chart as an OCI artifact to GitHub Container Registry:
 
 ```bash
 # 1. Package the Helm chart
@@ -170,40 +171,40 @@ helm package charts/mockery
 
 # This creates: mockery-1.0.0.tgz
 
-# 2. Login to Docker Hub OCI registry
-helm registry login registry-1.docker.io -u davhar
+# 2. Login to GitHub Container Registry
+helm registry login ghcr.io -u busadave13
 
-# You'll be prompted for your password or access token
+# You'll be prompted for your personal access token
 
-# 3. Push the chart to Docker Hub
-helm push mockery-1.0.0.tgz oci://registry-1.docker.io/davhar
+# 3. Push the chart to GitHub Container Registry
+helm push mockery-1.0.0.tgz oci://ghcr.io/busadave13/helm
 
 # 4. Verify by pulling the chart
-helm pull oci://registry-1.docker.io/davhar/mockery --version 1.0.0
+helm pull oci://ghcr.io/busadave13/helm/mockery --version 1.0.0
 ```
 
-The chart will be available at: `oci://registry-1.docker.io/davhar/mockery`
+The chart will be available at: `oci://ghcr.io/busadave13/helm/mockery`
 
 ### Deploying to Kubernetes with Helm
 
-Install Mockery using the Helm chart published to Docker Hub:
+Install Mockery using the Helm chart published to GitHub Container Registry:
 
 ```bash
 # Install from OCI registry
 # Note: Git repository is configured in the Docker image via appsettings.Production.json
-helm install mockery oci://registry-1.docker.io/davhar/mockery \
+helm install mockery oci://ghcr.io/busadave13/helm/mockery \
   --version 1.0.0 \
   --namespace dev \
   --create-namespace
 
 # Customize with values file (optional)
-helm install mockery oci://registry-1.docker.io/davhar/mockery \
+helm install mockery oci://ghcr.io/busadave13/helm/mockery \
   --version 1.0.0 \
   --namespace dev \
   --values my-values.yaml
 
 # Upgrade existing installation
-helm upgrade mockery oci://registry-1.docker.io/davhar/mockery \
+helm upgrade mockery oci://ghcr.io/busadave13/helm/mockery \
   --version 1.0.0 \
   --namespace dev
 
