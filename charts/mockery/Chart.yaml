@@ -23,5 +23,4 @@ annotations:
   artifacthub.io/displayName: Mockery
   artifacthub.io/license: MIT
   artifacthub.io/links: |
-    - name: Docker Hub
-      url: https://hub.docker.com/r/davhar/mockery
+    - name: GitHub Container Registry
