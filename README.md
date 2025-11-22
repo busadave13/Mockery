@@ -185,6 +185,30 @@ resources:
 
 For more Helm configuration options, see [charts/mockery/values.yaml](charts/mockery/values.yaml).
 
+### Publishing Helm Charts to Docker Hub
+
+To publish the Helm chart as an OCI artifact to Docker Hub:
+
+```bash
+# 1. Package the Helm chart
+helm package charts/mockery
+
+# This creates: mockery-1.0.0.tgz
+
+# 2. Login to Docker Hub OCI registry
+helm registry login registry-1.docker.io -u davhar
+
+# You'll be prompted for your password or access token
+
+# 3. Push the chart to Docker Hub
+helm push mockery-1.0.0.tgz oci://registry-1.docker.io/davhar
+
+# 4. Verify by pulling the chart
+helm pull oci://registry-1.docker.io/davhar/mockery --version 1.0.0
+```
+
+The chart will be available at: `oci://registry-1.docker.io/davhar/mockery`
+
 ## Usage
 
 ### Making Requests
