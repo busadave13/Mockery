@@ -21,6 +21,6 @@ maintainers:
 annotations:
   artifacthub.io/category: integration-delivery
   artifacthub.io/displayName: Mockery
-  artifacthub.io/license: MIT
+  artifacthub.io/license: GPL-3.0
   artifacthub.io/links: |
     - name: GitHub Container Registry
