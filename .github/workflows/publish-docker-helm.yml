@@ -159,7 +159,20 @@ jobs:
       - name: Push Helm chart to GitHub Container Registry (OCI)
         run: |
           CHART_VERSION=${{ steps.version.outputs.chart_version }}
-          CHART_PACKAGE=$(ls ./helm-packages/${{ env.IMAGE_NAME }}-${CHART_VERSION}.tgz)
+          
+          # Debug: List all files in helm-packages directory
+          echo "Files in helm-packages directory:"
+          ls -la ./helm-packages/
+          
+          # Find the actual chart package file (should match the chart version)
+          CHART_PACKAGE=$(find ./helm-packages -name "${{ env.IMAGE_NAME }}-*.tgz" | head -1)
+          
+          if [ -z "$CHART_PACKAGE" ]; then
+            echo "Error: No chart package found!"
+            exit 1
+          fi
+          
+          echo "Found chart package: $CHART_PACKAGE"
           helm push $CHART_PACKAGE oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.HELM_REPOSITORY }}
 
       - name: Commit version changes (Chart.yaml only)
