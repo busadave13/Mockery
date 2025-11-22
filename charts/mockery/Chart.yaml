@@ -16,11 +16,11 @@ sources:
   - https://github.com/busadave13/Mockery
 icon: https://raw.githubusercontent.com/busadave13/Mockery/main/.github/assets/icon.png
 maintainers:
-  - name: davhar
+  - name: Dave Harding
     url: https://github.com/busadave13
 annotations:
   artifacthub.io/category: integration-delivery
   artifacthub.io/displayName: Mockery
-  artifacthub.io/license: GPL-3.0
+  artifacthub.io/license: MIT
   artifacthub.io/links: |
     - name: GitHub Container Registry
