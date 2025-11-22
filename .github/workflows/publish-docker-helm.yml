@@ -67,27 +67,37 @@ jobs:
       - name: Calculate semantic version
         id: version
         run: |
+          # Get the base semantic version (clean version without pre-release tags)
+          BASE_VERSION="${{ steps.gitversion.outputs.majorMinorPatch }}"
+          
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual trigger - use input or calculate based on commits
+            # Manual trigger
             if [[ "${{ github.event.inputs.prerelease }}" == "true" ]]; then
               if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
                 # Private branch prerelease
                 BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
-                VERSION="${{ steps.gitversion.outputs.semVer }}-${BRANCH_NAME}.${{ github.run_number }}"
+                CHART_VERSION="${BASE_VERSION}-${BRANCH_NAME}.${{ github.run_number }}"
+                IMAGE_VERSION="${BASE_VERSION}-${BRANCH_NAME}.${{ github.run_number }}"
               else
-                VERSION="${{ steps.gitversion.outputs.semVer }}-rc.${{ github.run_number }}"
+                CHART_VERSION="${BASE_VERSION}-rc.${{ github.run_number }}"
+                IMAGE_VERSION="${BASE_VERSION}-rc.${{ github.run_number }}"
               fi
             else
-              VERSION="${{ steps.gitversion.outputs.semVer }}"
+              # Manual release - use clean version
+              CHART_VERSION="${BASE_VERSION}"
+              IMAGE_VERSION="${BASE_VERSION}"
             fi
           else
-            # PR merged - use GitVersion
-            VERSION="${{ steps.gitversion.outputs.semVer }}"
+            # PR merged - use clean semantic version
+            CHART_VERSION="${BASE_VERSION}"
+            IMAGE_VERSION="${BASE_VERSION}"
           fi
           
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "major_minor_patch=${{ steps.gitversion.outputs.majorMinorPatch }}" >> $GITHUB_OUTPUT
-          echo "Calculated version: $VERSION"
+          echo "chart_version=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "image_version=$IMAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Calculated chart version: $CHART_VERSION"
+          echo "Calculated image version: $IMAGE_VERSION"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -106,7 +116,7 @@ jobs:
           push: true
           tags: |
             ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}
             ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
@@ -118,12 +128,12 @@ jobs:
 
       - name: Update Helm chart versions
         run: |
-          # Update Chart.yaml with new version
-          sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.version }}\"/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          # Update Chart.yaml with new chart version
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.chart_version }}/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.image_version }}\"/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
           
           # Update values.yaml with new image tag (but don't commit this change)
-          sed -i "s|name: davhar/mockery:.*|name: davhar/mockery:${{ steps.version.outputs.version }}|" ${{ env.HELM_CHART_PATH }}/values.yaml
+          sed -i "s|name: davhar/mockery:.*|name: davhar/mockery:${{ steps.version.outputs.image_version }}|" ${{ env.HELM_CHART_PATH }}/values.yaml
           
           echo "Updated Chart.yaml and values.yaml:"
           echo "--- Chart.yaml version info ---"
@@ -141,7 +151,7 @@ jobs:
 
       - name: Push Helm chart to Docker Hub (OCI)
         run: |
-          CHART_VERSION=${{ steps.version.outputs.version }}
+          CHART_VERSION=${{ steps.version.outputs.chart_version }}
           CHART_PACKAGE=$(ls ./helm-packages/${{ env.IMAGE_NAME }}-${CHART_VERSION}.tgz)
           helm push $CHART_PACKAGE oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}
 
@@ -160,7 +170,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: bump chart version to ${{ steps.version.outputs.version }}"
+            git commit -m "chore: bump chart version to ${{ steps.version.outputs.chart_version }}"
             git push origin HEAD:main
           fi
 
@@ -170,26 +180,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          release_name: Release v${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.base_version }}
+          release_name: Release v${{ steps.version.outputs.base_version }}
           body: |
             ## Docker Image
-            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}`
+            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}`
             - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest`
 
             ## Helm Chart
             ```bash
-            helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.version }}
+            helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.chart_version }}
             ```
 
             ## Changes
             ${{ github.event.pull_request.title || 'Manual release' }}
             
             ### Version Details
-            - Semantic Version: ${{ steps.version.outputs.version }}
+            - Chart Version: ${{ steps.version.outputs.chart_version }}
+            - Image Version: ${{ steps.version.outputs.image_version }}
             - Git SHA: ${{ github.sha }}
           draft: false
-          prerelease: ${{ github.event.inputs.prerelease == 'true' || contains(steps.version.outputs.version, '-') }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' || contains(steps.version.outputs.chart_version, '-') }}
         continue-on-error: true  # Don't fail if tag already exists
 
       - name: Summary
@@ -197,19 +208,21 @@ jobs:
           echo "## 🚀 Published Successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Version Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Chart Version**: \`${{ steps.version.outputs.chart_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Version**: \`${{ steps.version.outputs.image_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base Version**: \`${{ steps.version.outputs.base_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Git SHA**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Trigger**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Helm Chart" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.ref }}" != "refs/heads/main" ]]; then
