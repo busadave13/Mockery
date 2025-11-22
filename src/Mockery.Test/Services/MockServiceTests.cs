@@ -91,22 +91,86 @@ public class MockServiceTests
     }
 
     [Fact]
-    public async Task GetMockAsync_WithStatusCode500_ReturnsContent()
+    public async Task GetMockAsync_WithStatusCode500_DoesNotReturnContent()
     {
         // Arrange
         var mockIds = new[] { "FooBar/1234" };
-        _mockRepository.Setup(x => x.FindMockFileAsync("FooBar", "1234"))
-            .ReturnsAsync(("{\"error\":\"internal error\"}", ".json"));
-        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
-            .Returns("application/json");
 
         // Act
         var result = await _service.GetMockAsync(mockIds, statusCode: 500);
 
         // Assert
         result.Should().NotBeNull();
+        result!.ShouldReturnContent.Should().BeFalse();
+        _mockRepository.Verify(x => x.FindMockFileAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusCode200_ReturnsContent()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/1234" };
+        _mockRepository.Setup(x => x.FindMockFileAsync("FooBar", "1234"))
+            .ReturnsAsync(("{\"success\":\"data\"}", ".json"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds, statusCode: 200);
+
+        // Assert
+        result.Should().NotBeNull();
         result!.ShouldReturnContent.Should().BeTrue();
-        result.Content.Should().Contain("error");
+        result.Content.Should().Contain("success");
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusCode301_ReturnsContent()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/1234" };
+        _mockRepository.Setup(x => x.FindMockFileAsync("FooBar", "1234"))
+            .ReturnsAsync(("{\"redirect\":\"info\"}", ".json"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds, statusCode: 301);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.ShouldReturnContent.Should().BeTrue();
+        result.Content.Should().Contain("redirect");
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusCode400_DoesNotReturnContent()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/1234" };
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds, statusCode: 400);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.ShouldReturnContent.Should().BeFalse();
+        _mockRepository.Verify(x => x.FindMockFileAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusCode401_DoesNotReturnContent()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/1234" };
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds, statusCode: 401);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.ShouldReturnContent.Should().BeFalse();
+        _mockRepository.Verify(x => x.FindMockFileAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]

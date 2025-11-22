@@ -94,12 +94,11 @@ public class MockService : IMockService
             return true; // Default: return content
         }
 
-        // Status code semantics
+        // Status code semantics - only return content for 2xx and 3xx status codes
         return statusCode.Value switch
         {
-            204 => false, // No Content - by definition
-            404 => false, // Not Found - semantically means "not found" = no content
-            _ => true     // All other status codes return content
+            >= 200 and < 400 => true,  // 2xx Success and 3xx Redirect - return content
+            _ => false                  // 4xx Client Error and 5xx Server Error - no content
         };
     }
 }

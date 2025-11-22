@@ -190,11 +190,13 @@ Mockery v3.0 follows a three-layer architecture pattern with pluggable storage:
 - Handle file not found scenarios
 
 **Status Code Behavior Logic:**
-- **204 (No Content):** Skip mock content retrieval, return headers only
-- **404 (Not Found):** Skip mock content retrieval, return custom headers only (semantically "not found" = no content)
-- **301/302/307/308 (Redirects):** Return mock content with redirect status (content can describe redirect)
-- **Other 4xx/5xx:** Return mock content normally (content represents error message)
+- **2xx (Success):** Return mock content with success status
+- **3xx (Redirect):** Return mock content with redirect status (content can describe redirect)
+- **4xx (Client Error):** Skip mock content retrieval, return headers only (semantically client errors should not include response body)
+- **5xx (Server Error):** Skip mock content retrieval, return headers only (semantically server errors should not include response body)
 - **Default (no header):** Return 200 OK with mock content
+
+**Key Change:** Only 2xx and 3xx status codes return mock content. All 4xx and 5xx status codes return empty body with only custom headers (if available).
 
 **Separation of Concerns:**
 - **Does NOT** parse HTTP headers or access HttpContext

@@ -13,7 +13,7 @@ REST API service for serving HTTP mock responses with support for both local fil
 - **Single GET Endpoint**: Simple API with header-based mock selection
 - **Random Selection**: Support for multiple mock IDs with random selection
 - **Custom Headers**: Optional headers files for custom HTTP response headers
-- **Status Code Control**: Dynamic status code behavior via request headers
+- **Status Code Control**: Dynamic status code behavior via request headers (4xx/5xx return no content)
 - **Rate Limiting**: Dual-strategy rate limiting (per-IP and global)
 - **No Authentication**: Designed for development/testing environments
 - **Health Checks**: Kubernetes-compatible liveness, readiness, and startup probes
