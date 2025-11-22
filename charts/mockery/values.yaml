@@ -23,25 +23,14 @@ resources:
 
 # Application configuration
 config:
-  # ASP.NET Core Environment
-  # Set to "Development" for local file system mode
-  # Set to "Production" for Git repository mode
+  # ASP.NET Core Environment (always use Production for Kubernetes)
+  # Git repository configuration is baked into the Docker image via appsettings.Production.json
   aspnetcoreEnvironment: "Production"
-
-  # Git Repository Configuration (Production Mode)
-  git:
-    repositoryUrl: "https://github.com/busadave13/Mocks.git"
-    branch: "main"
-    clonePath: "/mocks"
-
-# Secrets (for sensitive data like Git access tokens)
-secret:
-  # Access token for private Git repositories
-  # Leave empty for public repositories or use Kubernetes secrets
-  gitAccessToken: ""
 
 # Persistence for Git repository storage
 persistence:
+  # Enable persistence (required for Git mode)
+  enabled: true
   # Storage class for dynamic provisioning (leave empty for default)
   storageClass: ""
   # Access mode for the volume

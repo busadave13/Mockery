@@ -28,14 +28,6 @@ spec:
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
           env:
-            - name: GIT_REPOSITORY_URL
-              value: {{ .Values.config.git.repositoryUrl | quote }}
-            - name: GIT_BRANCH
-              value: {{ .Values.config.git.branch | quote }}
-            - name: GIT_CLONE_PATH
-              value: {{ .Values.config.git.clonePath | quote }}
-            - name: GIT_ACCESS_TOKEN
-              value: {{ .Values.secret.gitAccessToken | quote }}
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.config.aspnetcoreEnvironment | quote }}
           resources:
@@ -71,7 +63,7 @@ spec:
             failureThreshold: 3
           volumeMounts:
             - name: git-storage
-              mountPath: {{ .Values.config.git.clonePath }}
+              mountPath: /app/mocks
       volumes:
         - name: git-storage
           persistentVolumeClaim:

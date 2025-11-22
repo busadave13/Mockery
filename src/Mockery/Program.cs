@@ -25,13 +25,13 @@ if (mockRepoSettings.Type.Equals("Local", StringComparison.OrdinalIgnoreCase))
 }
 else
 {
-    // Git mode (production) - use environment variables
+    // Git mode - use appsettings configuration only
     builder.Services.Configure<GitRepositoryOptions>(options =>
     {
-        options.RepositoryUrl = Environment.GetEnvironmentVariable("GIT_REPOSITORY_URL") ?? "";
-        options.Branch = Environment.GetEnvironmentVariable("GIT_BRANCH") ?? "main";
-        options.ClonePath = Environment.GetEnvironmentVariable("GIT_CLONE_PATH") ?? "/app/mocks";
-        options.AccessToken = Environment.GetEnvironmentVariable("GIT_ACCESS_TOKEN") ?? "";
+        options.RepositoryUrl = mockRepoSettings.Git.RepositoryUrl;
+        options.Branch = mockRepoSettings.Git.Branch;
+        options.ClonePath = mockRepoSettings.Git.ClonePath;
+        options.AccessToken = mockRepoSettings.Git.AccessToken;
     });
 }
 
@@ -71,7 +71,7 @@ builder.Services.AddHealthChecks()
         }
         else
         {
-            clonePath = Environment.GetEnvironmentVariable("GIT_CLONE_PATH") ?? "/app/mocks";
+            clonePath = mockRepoSettings.Git.ClonePath;
         }
 
         var mocksPath = Path.Combine(clonePath, "mocks");

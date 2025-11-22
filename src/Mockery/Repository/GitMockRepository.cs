@@ -37,6 +37,27 @@ public class GitMockRepository : FileSystemMockRepositoryBase
             }
             else
             {
+                // Clean up any existing non-Git files (e.g., lost+found from empty PVC)
+                if (Directory.Exists(_options.ClonePath))
+                {
+                    var existingFiles = Directory.GetFileSystemEntries(_options.ClonePath);
+                    if (existingFiles.Length > 0)
+                    {
+                        _logger.LogInformation("Cleaning up {Count} existing files/directories in {Path}", existingFiles.Length, _options.ClonePath);
+                        foreach (var entry in existingFiles)
+                        {
+                            if (Directory.Exists(entry))
+                            {
+                                Directory.Delete(entry, recursive: true);
+                            }
+                            else
+                            {
+                                File.Delete(entry);
+                            }
+                        }
+                    }
+                }
+
                 _logger.LogInformation("Cloning repository to {Path}", _options.ClonePath);
 
                 var cloneOptions = new CloneOptions();
