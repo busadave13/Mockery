@@ -104,6 +104,87 @@ docker run -d --name mockery -p 8080:8080 \
   mockery:latest
 ```
 
+### Using Pre-built Docker Images
+
+Pull and run the latest published image from Docker Hub:
+
+```bash
+# Pull latest version
+docker pull davhar/mockery:latest
+
+# Run with local mocks (Development)
+docker run -d --name mockery -p 8080:8080 \
+  -v "$(pwd)/.mocks:/app/mocks/mocks" \
+  -e ASPNETCORE_ENVIRONMENT=Development \
+  davhar/mockery:latest
+
+# Run with Git repository (Production)
+docker run -d --name mockery -p 8080:8080 \
+  -e GIT_REPOSITORY_URL="https://github.com/busadave13/Mocks.git" \
+  -e GIT_BRANCH="main" \
+  -e GIT_CLONE_PATH="/app/mocks" \
+  davhar/mockery:latest
+
+# Or use a specific version
+docker pull davhar/mockery:1.0.0
+```
+
+### Deploying to Kubernetes with Helm
+
+Install Mockery using the Helm chart published to Docker Hub:
+
+```bash
+# Install from OCI registry
+helm install mockery oci://registry-1.docker.io/davhar/mockery \
+  --version 1.0.0 \
+  --namespace dev \
+  --create-namespace \
+  --set config.git.repositoryUrl=https://github.com/busadave13/Mocks.git
+
+# Customize with values file
+helm install mockery oci://registry-1.docker.io/davhar/mockery \
+  --version 1.0.0 \
+  --namespace dev \
+  --values my-values.yaml
+
+# Upgrade existing installation
+helm upgrade mockery oci://registry-1.docker.io/davhar/mockery \
+  --version 1.0.0 \
+  --namespace dev
+
+# Uninstall
+helm uninstall mockery --namespace dev
+```
+
+**Key Helm Configuration Options:**
+
+```yaml
+# Example my-values.yaml
+config:
+  aspnetcoreEnvironment: "Production"
+  git:
+    repositoryUrl: "https://github.com/your-org/mocks.git"
+    branch: "main"
+    clonePath: "/mocks"
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""  # Use cluster default
+
+replicaCount: 2
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+```
+
+For more Helm configuration options, see [charts/mockery/values.yaml](charts/mockery/values.yaml).
+
 ## Usage
 
 ### Making Requests

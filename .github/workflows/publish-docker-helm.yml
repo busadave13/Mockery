@@ -1,0 +1,121 @@
+name: Publish Docker Image and Helm Charts
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_HUB_USERNAME: davhar
+  IMAGE_NAME: mockery
+  HELM_CHART_PATH: charts/mockery
+
+jobs:
+  publish:
+    # Only run if PR was merged (not just closed)
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/Mockery/Mockery.csproj
+
+      - name: Build
+        run: dotnet build src/Mockery/Mockery.csproj -c Release --no-restore
+
+      - name: Run tests
+        run: dotnet test src/Mockery.Test/Mockery.Test.csproj --no-build --verbosity normal
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract version from Chart.yaml
+        id: chart-version
+        run: |
+          CHART_VERSION=$(grep '^version:' ${{ env.HELM_CHART_PATH }}/Chart.yaml | awk '{print $2}')
+          echo "version=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "Chart version: $CHART_VERSION"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.chart-version.outputs.version }}
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Package Helm chart
+        run: |
+          helm package ${{ env.HELM_CHART_PATH }} -d ./helm-packages
+
+      - name: Log in to Docker Hub (OCI registry for Helm)
+        run: |
+          echo ${{ secrets.DOCKERHUB_TOKEN }} | helm registry login registry-1.docker.io -u ${{ env.DOCKER_HUB_USERNAME }} --password-stdin
+
+      - name: Push Helm chart to Docker Hub (OCI)
+        run: |
+          CHART_VERSION=${{ steps.chart-version.outputs.version }}
+          CHART_PACKAGE=$(ls ./helm-packages/${{ env.IMAGE_NAME }}-${CHART_VERSION}.tgz)
+          helm push $CHART_PACKAGE oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.chart-version.outputs.version }}
+          release_name: Release v${{ steps.chart-version.outputs.version }}
+          body: |
+            ## Docker Image
+            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.chart-version.outputs.version }}`
+            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest`
+
+            ## Helm Chart
+            ```bash
+            helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.chart-version.outputs.version }}
+            ```
+
+            ## Changes
+            ${{ github.event.pull_request.title }}
+          draft: false
+          prerelease: false
+        continue-on-error: true  # Don't fail if tag already exists
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Published Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.chart-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Helm Chart" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.chart-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
