@@ -5,6 +5,21 @@ on:
     types: [closed]
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      prerelease:
+        description: 'Create prerelease version'
+        required: false
+        default: false
+        type: boolean
 
 env:
   DOCKER_HUB_USERNAME: davhar
@@ -13,13 +28,15 @@ env:
 
 jobs:
   publish:
-    # Only run if PR was merged (not just closed)
+    # Only run if PR was merged (not just closed) or manually dispatched
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for semantic versioning
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -35,6 +52,43 @@ jobs:
       - name: Run tests
         run: dotnet test src/Mockery.Test/Mockery.Test.csproj --no-build --verbosity normal
 
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0.10.2
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v0.10.2
+        with:
+          useConfigFile: true
+          configFilePath: .gitversion.yml
+
+      - name: Calculate semantic version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger - use input or calculate based on commits
+            if [[ "${{ github.event.inputs.prerelease }}" == "true" ]]; then
+              if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+                # Private branch prerelease
+                BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+                VERSION="${{ steps.gitversion.outputs.semVer }}-${BRANCH_NAME}.${{ github.run_number }}"
+              else
+                VERSION="${{ steps.gitversion.outputs.semVer }}-rc.${{ github.run_number }}"
+              fi
+            else
+              VERSION="${{ steps.gitversion.outputs.semVer }}"
+            fi
+          else
+            # PR merged - use GitVersion
+            VERSION="${{ steps.gitversion.outputs.semVer }}"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "major_minor_patch=${{ steps.gitversion.outputs.majorMinorPatch }}" >> $GITHUB_OUTPUT
+          echo "Calculated version: $VERSION"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -44,13 +98,6 @@ jobs:
           username: ${{ env.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract version from Chart.yaml
-        id: chart-version
-        run: |
-          CHART_VERSION=$(grep '^version:' ${{ env.HELM_CHART_PATH }}/Chart.yaml | awk '{print $2}')
-          echo "version=$CHART_VERSION" >> $GITHUB_OUTPUT
-          echo "Chart version: $CHART_VERSION"
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -59,7 +106,7 @@ jobs:
           push: true
           tags: |
             ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.chart-version.outputs.version }}
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
             ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
@@ -68,6 +115,21 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: 'latest'
+
+      - name: Update Helm chart versions
+        run: |
+          # Update Chart.yaml with new version
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.version }}\"/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          
+          # Update values.yaml with new image tag (but don't commit this change)
+          sed -i "s|name: davhar/mockery:.*|name: davhar/mockery:${{ steps.version.outputs.version }}|" ${{ env.HELM_CHART_PATH }}/values.yaml
+          
+          echo "Updated Chart.yaml and values.yaml:"
+          echo "--- Chart.yaml version info ---"
+          grep -E "^(version|appVersion):" ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          echo "--- values.yaml image info ---"
+          grep "name: davhar/mockery:" ${{ env.HELM_CHART_PATH }}/values.yaml
 
       - name: Package Helm chart
         run: |
@@ -79,43 +141,78 @@ jobs:
 
       - name: Push Helm chart to Docker Hub (OCI)
         run: |
-          CHART_VERSION=${{ steps.chart-version.outputs.version }}
+          CHART_VERSION=${{ steps.version.outputs.version }}
           CHART_PACKAGE=$(ls ./helm-packages/${{ env.IMAGE_NAME }}-${CHART_VERSION}.tgz)
           helm push $CHART_PACKAGE oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}
 
+      - name: Commit version changes (Chart.yaml only)
+        if: github.event.pull_request.merged == true  # Only commit on PR merge, not manual runs
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Reset values.yaml to original state (don't commit image version change)
+          git checkout HEAD -- ${{ env.HELM_CHART_PATH }}/values.yaml
+          
+          # Only commit Chart.yaml changes
+          git add ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: bump chart version to ${{ steps.version.outputs.version }}"
+            git push origin HEAD:main
+          fi
+
       - name: Create GitHub Release
+        if: github.event.pull_request.merged == true  # Only create release on PR merge
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ steps.chart-version.outputs.version }}
-          release_name: Release v${{ steps.chart-version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: Release v${{ steps.version.outputs.version }}
           body: |
             ## Docker Image
-            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.chart-version.outputs.version }}`
+            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}`
             - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest`
 
             ## Helm Chart
             ```bash
-            helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.chart-version.outputs.version }}
+            helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.version }}
             ```
 
             ## Changes
-            ${{ github.event.pull_request.title }}
+            ${{ github.event.pull_request.title || 'Manual release' }}
+            
+            ### Version Details
+            - Semantic Version: ${{ steps.version.outputs.version }}
+            - Git SHA: ${{ github.sha }}
           draft: false
-          prerelease: false
+          prerelease: ${{ github.event.inputs.prerelease == 'true' || contains(steps.version.outputs.version, '-') }}
         continue-on-error: true  # Don't fail if tag already exists
 
       - name: Summary
         run: |
           echo "## 🚀 Published Successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Git SHA**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.chart-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Helm Chart" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.chart-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "### 🧪 Test Release" >> $GITHUB_STEP_SUMMARY
+            echo "This is a test release from branch \`${{ github.ref_name }}\`. The image version in values.yaml was updated temporarily but not committed." >> $GITHUB_STEP_SUMMARY
+          fi
