@@ -173,7 +173,7 @@ jobs:
           fi
           
           echo "Found chart package: $CHART_PACKAGE"
-          helm push $CHART_PACKAGE oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.HELM_REPOSITORY }}
+          helm push $CHART_PACKAGE oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/helm
 
       - name: Commit version changes (Chart.yaml only)
         if: github.event.pull_request.merged == true # Only commit on PR merge, not manual runs
@@ -209,7 +209,7 @@ jobs:
 
             ## Helm Chart
             ```bash
-            helm install mockery oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.HELM_REPOSITORY }} --version ${{ steps.version.outputs.chart_version }}
+            helm install mockery oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/helm/mockery --version ${{ steps.version.outputs.chart_version }}
             ```
 
             ## Changes
@@ -242,7 +242,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Helm Chart" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "helm install mockery oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.HELM_REPOSITORY }} --version ${{ steps.version.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "helm install mockery oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/helm/mockery --version ${{ steps.version.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.ref }}" != "refs/heads/main" ]]; then
