@@ -22,8 +22,10 @@ on:
         type: boolean
 
 env:
-  DOCKER_HUB_USERNAME: davhar
+  REGISTRY: ghcr.io
+  GITHUB_USERNAME: busadave13
   IMAGE_NAME: mockery
+  HELM_REPOSITORY: helm/mockery
   HELM_CHART_PATH: charts/mockery
 
 jobs:
@@ -31,6 +33,10 @@ jobs:
     # Only run if PR was merged (not just closed) or manually dispatched
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
 
     steps:
       - name: Checkout code
@@ -102,11 +108,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -115,11 +122,11 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}
-            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+            ${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}
+            ${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -133,27 +140,27 @@ jobs:
           sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.image_version }}\"/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
 
           # Update values.yaml with new image tag (but don't commit this change)
-          sed -i "s|name: davhar/mockery:.*|name: davhar/mockery:${{ steps.version.outputs.image_version }}|" ${{ env.HELM_CHART_PATH }}/values.yaml
+          sed -i "s|name: .*mockery:.*|name: ${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}|" ${{ env.HELM_CHART_PATH }}/values.yaml
 
           echo "Updated Chart.yaml and values.yaml:"
           echo "--- Chart.yaml version info ---"
           grep -E "^(version|appVersion):" ${{ env.HELM_CHART_PATH }}/Chart.yaml
           echo "--- values.yaml image info ---"
-          grep "name: davhar/mockery:" ${{ env.HELM_CHART_PATH }}/values.yaml
+          grep "name: .*mockery:" ${{ env.HELM_CHART_PATH }}/values.yaml
 
       - name: Package Helm chart
         run: |
           helm package ${{ env.HELM_CHART_PATH }} -d ./helm-packages
 
-      - name: Log in to Docker Hub (OCI registry for Helm)
+      - name: Log in to GitHub Container Registry (OCI registry for Helm)
         run: |
-          echo ${{ secrets.DOCKERHUB_TOKEN }} | helm registry login registry-1.docker.io -u ${{ env.DOCKER_HUB_USERNAME }} --password-stdin
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-      - name: Push Helm chart to Docker Hub (OCI)
+      - name: Push Helm chart to GitHub Container Registry (OCI)
         run: |
           CHART_VERSION=${{ steps.version.outputs.chart_version }}
           CHART_PACKAGE=$(ls ./helm-packages/${{ env.IMAGE_NAME }}-${CHART_VERSION}.tgz)
-          helm push $CHART_PACKAGE oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}
+          helm push $CHART_PACKAGE oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.HELM_REPOSITORY }}
 
       - name: Commit version changes (Chart.yaml only)
         if: github.event.pull_request.merged == true # Only commit on PR merge, not manual runs
@@ -184,12 +191,12 @@ jobs:
           release_name: Release v${{ steps.version.outputs.base_version }}
           body: |
             ## Docker Image
-            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}`
-            - `docker pull ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest`
+            - `docker pull ${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}`
+            - `docker pull ${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest`
 
             ## Helm Chart
             ```bash
-            helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.chart_version }}
+            helm install mockery oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.HELM_REPOSITORY }} --version ${{ steps.version.outputs.chart_version }}
             ```
 
             ## Changes
@@ -216,13 +223,13 @@ jobs:
           echo "- **Trigger**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Helm Chart" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "helm install mockery oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }} --version ${{ steps.version.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "helm install mockery oci://${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.HELM_REPOSITORY }} --version ${{ steps.version.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.ref }}" != "refs/heads/main" ]]; then

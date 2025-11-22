@@ -1,6 +1,6 @@
 services:
   mockery:
-    image: davhar/mockery:latest
+    image: ghcr.io/busadave13/mockery:latest
     build:
       context: .
       dockerfile: Dockerfile
