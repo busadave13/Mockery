@@ -3,20 +3,20 @@ name: Publish Docker Image and Helm Charts
 on:
   pull_request:
     types: [closed]
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
     inputs:
       version_bump:
-        description: 'Version bump type'
+        description: "Version bump type"
         required: false
-        default: 'patch'
+        default: "patch"
         type: choice
         options:
           - patch
           - minor
           - major
       prerelease:
-        description: 'Create prerelease version'
+        description: "Create prerelease version"
         required: false
         default: false
         type: boolean
@@ -36,12 +36,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch full history for semantic versioning
+          fetch-depth: 0 # Fetch full history for semantic versioning
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: "9.0.x"
 
       - name: Restore dependencies
         run: dotnet restore src/Mockery/Mockery.csproj
@@ -55,7 +55,7 @@ jobs:
       - name: Install GitVersion
         uses: gittools/actions/gitversion/setup@v0.10.2
         with:
-          versionSpec: '5.x'
+          versionSpec: "5.x"
 
       - name: Determine Version
         id: gitversion
@@ -69,7 +69,7 @@ jobs:
         run: |
           # Get the base semantic version (clean version without pre-release tags)
           BASE_VERSION="${{ steps.gitversion.outputs.majorMinorPatch }}"
-          
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             # Manual trigger
             if [[ "${{ github.event.inputs.prerelease }}" == "true" ]]; then
@@ -92,7 +92,7 @@ jobs:
             CHART_VERSION="${BASE_VERSION}"
             IMAGE_VERSION="${BASE_VERSION}"
           fi
-          
+
           echo "chart_version=$CHART_VERSION" >> $GITHUB_OUTPUT
           echo "image_version=$IMAGE_VERSION" >> $GITHUB_OUTPUT
           echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
@@ -124,17 +124,17 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'latest'
+          version: "latest"
 
       - name: Update Helm chart versions
         run: |
           # Update Chart.yaml with new chart version
           sed -i "s/^version:.*/version: ${{ steps.version.outputs.chart_version }}/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.image_version }}\"/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
-          
+
           # Update values.yaml with new image tag (but don't commit this change)
           sed -i "s|name: davhar/mockery:.*|name: davhar/mockery:${{ steps.version.outputs.image_version }}|" ${{ env.HELM_CHART_PATH }}/values.yaml
-          
+
           echo "Updated Chart.yaml and values.yaml:"
           echo "--- Chart.yaml version info ---"
           grep -E "^(version|appVersion):" ${{ env.HELM_CHART_PATH }}/Chart.yaml
@@ -156,17 +156,17 @@ jobs:
           helm push $CHART_PACKAGE oci://registry-1.docker.io/${{ env.DOCKER_HUB_USERNAME }}
 
       - name: Commit version changes (Chart.yaml only)
-        if: github.event.pull_request.merged == true  # Only commit on PR merge, not manual runs
+        if: github.event.pull_request.merged == true # Only commit on PR merge, not manual runs
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
+
           # Reset values.yaml to original state (don't commit image version change)
           git checkout HEAD -- ${{ env.HELM_CHART_PATH }}/values.yaml
-          
+
           # Only commit Chart.yaml changes
           git add ${{ env.HELM_CHART_PATH }}/Chart.yaml
-          
+
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
@@ -175,7 +175,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        if: github.event.pull_request.merged == true  # Only create release on PR merge
+        if: github.event.pull_request.merged == true # Only create release on PR merge
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -194,14 +194,14 @@ jobs:
 
             ## Changes
             ${{ github.event.pull_request.title || 'Manual release' }}
-            
+
             ### Version Details
             - Chart Version: ${{ steps.version.outputs.chart_version }}
             - Image Version: ${{ steps.version.outputs.image_version }}
             - Git SHA: ${{ github.sha }}
           draft: false
           prerelease: ${{ github.event.inputs.prerelease == 'true' || contains(steps.version.outputs.chart_version, '-') }}
-        continue-on-error: true  # Don't fail if tag already exists
+        continue-on-error: true # Don't fail if tag already exists
 
       - name: Summary
         run: |
