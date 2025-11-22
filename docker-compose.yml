@@ -1,9 +1,12 @@
 services:
   mockery:
-    image: ghcr.io/busadave13/mockery:latest
     build:
       context: .
       dockerfile: Dockerfile
+      # Force rebuild - no cache
+      args:
+        BUILDKIT_INLINE_CACHE: 0
+    image: mockery:local
     container_name: mockery
     ports:
       - "8080:8080"
