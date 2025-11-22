@@ -34,7 +34,7 @@ cd src/Mockery
 dotnet run
 
 # 3. Test with included sample mocks
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 ```
 
 **Sample mocks included:**
@@ -51,7 +51,7 @@ mkdir -p .mocks/MyService
 echo '{"status":"success"}' > .mocks/MyService/test.json
 
 # Test it immediately (no restart needed)
-curl -i -H "X-Mock-ID: MyService/test" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
 ```
 
 ### Running with Docker
@@ -65,22 +65,22 @@ Run Mockery in Docker with local file system mocks (no Git required):
 docker build -t mockery:latest .
 
 # 2. Run container with volume mount to local .mocks directory
-docker run -d --name mockery -p 3000:3000 \
+docker run -d --name mockery -p 8080:8080 \
   -v "$(pwd)/.mocks:/app/mocks/mocks" \
   -e ASPNETCORE_ENVIRONMENT=Development \
   mockery:latest
 
 # On Windows (PowerShell or CMD), use absolute path:
-docker run -d --name mockery -p 3000:3000 \
+docker run -d --name mockery -p 8080:8080 \
   -v "C:\path\to\Mockery\.mocks:/app/mocks/mocks" \
   -e ASPNETCORE_ENVIRONMENT=Development \
   mockery:latest
 
 # 3. Test the endpoints
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
-curl -i -H "X-Mock-ID: FooBar/5678" http://localhost:3000/api/mock
-curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:3000/api/mock
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: FooBar/5678" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
 
 # 4. Check container logs
 docker logs mockery
@@ -97,7 +97,7 @@ Run Mockery with Git repository for mocks:
 
 ```bash
 docker build -t mockery:latest .
-docker run -d --name mockery -p 3000:3000 \
+docker run -d --name mockery -p 8080:8080 \
   -e GIT_REPOSITORY_URL="https://github.com/your-org/mockery-mocks.git" \
   -e GIT_BRANCH="main" \
   -e GIT_CLONE_PATH="/app/mocks" \
@@ -110,13 +110,16 @@ docker run -d --name mockery -p 3000:3000 \
 
 ```bash
 # Single mock ID
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 
 # Multiple mock IDs (random selection)
-curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678" http://localhost:8080/api/mock
 
 # With custom status code
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
+
+# When running in kubernetes with custom host header
+curl -i -H "X-Mock-ID: test/test" -H "Host: mockery.local.com"  http://mockery.local.com/api/mock
 ```
 
 ### Mock Repository Structure
@@ -309,13 +312,3 @@ Repository  MockRepository
 ## License
 
 MIT
-
-
-az ad sp create-for-rbac --name "github-actions-connector" --role contributor --scopes /subscriptions/79a9ae56-fcc2-4717-a184-a409adf7d669/resourceGroups/global
-
-{
-  "appId": "fa04f127-5cd8-47c9-b94a-a1c1a07c10cb",
-  "displayName": "github-actions-connector",
-  "password": "3Rp8Q~DgjHw2Hlg_QaScoDKD82gRCbJZK7J43db-",
-  "tenant": "63d0f08e-6579-4d52-9c95-4baef66906ea"
-}

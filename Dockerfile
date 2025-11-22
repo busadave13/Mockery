@@ -1,11 +1,11 @@
 # Base image
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
-EXPOSE 3000
-ENV ASPNETCORE_URLS=http://+:3000
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
 
-# Install Git for LibGit2Sharp
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install Git for LibGit2Sharp and curl for health checks
+RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
 
 # Build image
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build

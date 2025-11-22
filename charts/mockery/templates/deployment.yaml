@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Values.name }}-dep"
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: mockery
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        release: {{ .Release.Name }}
+    spec:
+      serviceAccountName: "{{ .Values.name }}-sa"
+      containers:
+        - name: mockery
+          image: {{ .Values.image.name }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: GIT_REPOSITORY_URL
+              value: {{ .Values.config.git.repositoryUrl | quote }}
+            - name: GIT_BRANCH
+              value: {{ .Values.config.git.branch | quote }}
+            - name: GIT_CLONE_PATH
+              value: {{ .Values.config.git.clonePath | quote }}
+            - name: GIT_ACCESS_TOKEN
+              value: {{ .Values.secret.gitAccessToken | quote }}
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.config.aspnetcoreEnvironment | quote }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: git-storage
+              mountPath: {{ .Values.config.git.clonePath }}
+      volumes:
+        - name: git-storage
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-pvc" .Values.name) }}

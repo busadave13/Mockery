@@ -61,19 +61,19 @@ The repository includes sample mocks in `.mocks/` that work immediately:
 #### Development Mode (Local File System)
 ```bash
 # Build Docker image
-docker build -t mockery:latest .
+docker build -t davhar/mockery:latest .
 
 # Run container with local .mocks directory
 docker run -d --name mockery -p 3000:3000 \
   -v "$(pwd)/.mocks:/app/mocks/mocks" \
   -e ASPNETCORE_ENVIRONMENT=Development \
-  mockery:latest
+  davhar/mockery:latest
 
 # On Windows, use absolute path:
 docker run -d --name mockery -p 3000:3000 \
   -v "C:\path\to\Mockery\.mocks:/app/mocks/mocks" \
   -e ASPNETCORE_ENVIRONMENT=Development \
-  mockery:latest
+  davhar/mockery:latest
 
 # Test the endpoints
 curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock

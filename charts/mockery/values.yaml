@@ -1,0 +1,52 @@
+# Default values for mockery Helm chart
+
+name: mockery
+namespace: dev
+replicaCount: 2
+
+image:
+  name: davhar/mockery:latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+# Application configuration
+config:
+  # ASP.NET Core Environment
+  # Set to "Development" for local file system mode
+  # Set to "Production" for Git repository mode
+  aspnetcoreEnvironment: "Production"
+
+  # Git Repository Configuration (Production Mode)
+  git:
+    repositoryUrl: "https://github.com/busadave13/Mocks.git"
+    branch: "main"
+    clonePath: "/mocks"
+
+# Secrets (for sensitive data like Git access tokens)
+secret:
+  # Access token for private Git repositories
+  # Leave empty for public repositories or use Kubernetes secrets
+  gitAccessToken: ""
+
+# Persistence for Git repository storage
+persistence:
+  # Storage class for dynamic provisioning (leave empty for default)
+  storageClass: ""
+  # Access mode for the volume
+  accessMode: ReadWriteOnce
+  # Size of the persistent volume
+  size: 1Gi
+  # Optional: Use existing PVC instead of creating a new one
+  existingClaim: ""
