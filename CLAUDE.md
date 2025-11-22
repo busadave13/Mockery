@@ -33,17 +33,24 @@ dotnet test
 
 **Local development uses the local file system** - no Git setup required!
 
-```bash
-# 1. Run application from src/Mockery
-cd src/Mockery
-dotnet run
+**IMPORTANT**: Always run from the `src/Mockery` directory.
 
-# Application will listen on http://localhost:3000 by default
-# Mocks are loaded from .mocks/ directory at project root
+```bash
+# Navigate to src/Mockery directory
+cd src/Mockery
+
+# Run in Development mode (uses Local repository)
+dotnet run --urls "http://localhost:8080"
+
+# Or explicitly set environment
+dotnet run --urls "http://localhost:8080" --environment Development
+
+# Application listens on http://localhost:8080
+# Mocks are loaded from mocks/ directory at project root
 ```
 
 **Quick Start - Sample Mocks Included:**
-The repository includes sample mocks in `.mocks/` that work immediately:
+The repository includes sample mocks in `mocks/` that work immediately:
 - `FooBar/1234` - JSON response with custom headers
 - `FooBar/5678` - HTML response
 - `Products/hydrate` - Product catalog
@@ -51,49 +58,44 @@ The repository includes sample mocks in `.mocks/` that work immediately:
 
 **How It Works:**
 - Development mode is configured in `appsettings.Development.json`
-- Mock files are read directly from `.mocks/` directory
+- Mock files are read directly from `mocks/` directory (at repository root)
 - No Git operations performed (clone/pull disabled)
 - Changes to mock files are picked up immediately (no restart needed)
-- New mocks can be added by creating files in the `.mocks/` directory
+- New mocks can be added by creating files in the `mocks/` directory
 
 ### Docker Commands
 
-#### Development Mode (Local File System)
+**Docker Mode (Git Repository Only)**
+
+Docker deployments always use Git mode. Configure your Git repository settings in `appsettings.Production.json` before building the image.
+
 ```bash
-# Build Docker image
-docker build -t davhar/mockery:latest .
+# 1. Configure Git settings in appsettings.Production.json
+# Edit src/Mockery/appsettings.Production.json:
+# {
+#   "MockRepository": {
+#     "Type": "Git",
+#     "Git": {
+#       "RepositoryUrl": "https://github.com/your-org/mockery-mocks.git",
+#       "Branch": "main",
+#       "ClonePath": "/app/mocks",
+#       "AccessToken": "your-token-if-private-repo"
+#     }
+#   }
+# }
 
-# Run container with local .mocks directory
-docker run -d --name mockery -p 3000:3000 \
-  -v "$(pwd)/.mocks:/app/mocks/mocks" \
-  -e ASPNETCORE_ENVIRONMENT=Development \
-  davhar/mockery:latest
+# 2. Build Docker image
+docker build -t dasacr.azurecr.io/mockery:latest .
 
-# On Windows, use absolute path:
-docker run -d --name mockery -p 3000:3000 \
-  -v "C:\path\to\Mockery\.mocks:/app/mocks/mocks" \
-  -e ASPNETCORE_ENVIRONMENT=Development \
-  davhar/mockery:latest
+# 3. Run container
+docker run -d --name mockery -p 3000:3000 dasacr.azurecr.io/mockery:latest
 
-# Test the endpoints
+# 4. Test endpoints
 curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
 curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:3000/api/mock
 
-# Stop and remove container
+# 5. Stop and remove container
 docker stop mockery && docker rm mockery
-```
-
-#### Production Mode (Git Repository)
-```bash
-# Build Docker image
-docker build -t dasacr.azurecr.io/mockery:latest .
-
-# Run container with Git repository
-docker run -d -p 3000:3000 \
-  -e GIT_REPOSITORY_URL="https://github.com/your-org/mockery-mocks.git" \
-  -e GIT_BRANCH="main" \
-  -e GIT_CLONE_PATH="/app/mocks" \
-  dasacr.azurecr.io/mockery:latest
 ```
 
 ### Testing Mock Endpoints
@@ -132,26 +134,36 @@ Mockery supports two repository modes:
 - Ideal for local development and testing
 
 **Setup:**
-1. Create mock files in `.mocks/{ServiceName}/{FileId}.{extension}`
-2. Run `dotnet run` - no environment variables needed
-3. Mock files can be edited while the service is running
+1. Create mock files in `mocks/{ServiceName}/{FileId}.{extension}` (at repository root)
+2. Navigate to `cd src/Mockery`
+3. Run `dotnet run --urls "http://localhost:8080"`
+4. Mock files can be edited while the service is running (no restart needed)
 
-### Git Mode (Production)
+### Git Mode (Production/Docker)
 
-**Configuration:** Set `MockRepository.Type` to `"Git"` or omit the section entirely (defaults to Git mode).
-
-**Environment Variables Required:**
-- `GIT_REPOSITORY_URL`: URL of Git repository containing mock files
-- `GIT_BRANCH`: Git branch to use (default: `main`)
-- `GIT_CLONE_PATH`: Local file system path for repository clone (e.g., `/app/mocks`)
-- `GIT_ACCESS_TOKEN`: Personal access token for private repositories (optional for public repos)
+**Configuration:** Set in `appsettings.Production.json`:
+```json
+{
+  "MockRepository": {
+    "Type": "Git",
+    "Git": {
+      "RepositoryUrl": "https://github.com/your-org/mockery-mocks.git",
+      "Branch": "main",
+      "ClonePath": "/app/mocks",
+      "AccessToken": "your-token-if-private-repo"
+    }
+  }
+}
+```
 
 **Characteristics:**
 - Uses `GitMockRepository` implementation
 - Clones Git repository on startup
 - Pulls latest changes when repository already exists
 - Mocks managed through Git workflows (commits, PRs, version control)
+- Required for Docker deployments
 - Ideal for production, staging, and shared environments
+- Configuration is done entirely through appsettings files (no environment variables)
 
 ## Architecture
 
@@ -224,23 +236,29 @@ mocks/
 - Service intended for development/testing environments
 - Network-level security recommended (VPN, private networks)
 
-### Configuration and Environment Variables
+### Configuration
 
 **Repository Mode Configuration (appsettings.json):**
 ```json
 {
   "MockRepository": {
-    "Type": "Local",        // "Local" for development, "Git" for production
-    "LocalPath": "./mocks"  // Used in Local mode only
+    "Type": "Local",        // "Local" for development, "Git" for Docker/production
+    "LocalPath": "./mocks", // Used in Local mode only
+    "Git": {                // Used in Git mode only (required for Docker)
+      "RepositoryUrl": "https://github.com/your-org/mockery-mocks.git",
+      "Branch": "main",
+      "ClonePath": "/app/mocks",
+      "AccessToken": ""
+    }
   }
 }
 ```
 
-**Environment Variables (Git Mode Only):**
-- `GIT_REPOSITORY_URL`: URL of Git repository containing mock files
-- `GIT_BRANCH`: Git branch to use (default: `main`)
-- `GIT_CLONE_PATH`: Local file system path for repository clone (e.g., `/app/mocks`)
-- `GIT_ACCESS_TOKEN`: Personal access token for private repositories (optional for public repos)
+**Important Notes:**
+- Local development (`dotnet run` from `src/Mockery`) uses Local mode with `mocks/` directory
+- Docker deployments always use Git mode - configure in `appsettings.Production.json`
+- All configuration is done through appsettings files
+- No environment variables are used or supported for Git configuration
 
 **Rate Limiting Configuration (appsettings.json):**
 ```json

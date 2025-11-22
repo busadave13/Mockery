@@ -20,7 +20,7 @@ REST API service for serving HTTP mock responses with support for both local fil
 
 ## Quick Start
 
-### Running Locally (Development Mode - Recommended)
+### Running Locally with dotnet run (Development Mode - Recommended)
 
 **No Git setup required!** The service includes sample mocks and uses local file system by default.
 
@@ -29,12 +29,16 @@ REST API service for serving HTTP mock responses with support for both local fil
 git clone https://github.com/your-org/mockery.git
 cd mockery
 
-# 2. Run the service
+# 2. Navigate to the application directory
 cd src/Mockery
-dotnet run
 
-# 3. Test with included sample mocks
+# 3. Set environment to Development and run the service
+export ASPNETCORE_ENVIRONMENT=Development
+dotnet run --urls "http://localhost:8080"
+
+# 4. Test with included sample mocks
 curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
 ```
 
 **Sample mocks included:**
@@ -43,66 +47,197 @@ curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 - `Products/hydrate` - Product catalog
 - `Products/error` - Error response
 
-**Add your own mocks:** Simply create files in the `.mocks/` directory while the service is running!
+**Add your own mocks:** Simply create files in the `mocks/` directory (at repository root) while the service is running!
 
 ```bash
+# Navigate back to repository root
+cd ../..
+
 # Create a new mock
-mkdir -p .mocks/MyService
-echo '{"status":"success"}' > .mocks/MyService/test.json
+mkdir -p mocks/MyService
+echo '{"status":"success"}' > mocks/MyService/test.json
 
 # Test it immediately (no restart needed)
 curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
 ```
 
-### Running with Docker
+**Important:**
+- Always run `dotnet run` from the `src/Mockery` directory
+- **Must set** `ASPNETCORE_ENVIRONMENT=Development` before running (otherwise uses Production/Git mode)
+- Mock files are located at repository root: `mocks/{ServiceName}/{FileId}.{extension}`
 
-#### Development Mode (Local File System)
+### Running with Docker Compose (Production - Git Mode)
 
-Run Mockery in Docker with local file system mocks (no Git required):
+**Docker deployments always use Git mode.** Configure your Git repository in `src/Mockery/appsettings.Production.json` before building.
 
 ```bash
-# 1. Build the Docker image
-docker build -t mockery:latest .
+# 1. Configure Git repository settings
+# Edit src/Mockery/appsettings.Production.json:
+# {
+#   "MockRepository": {
+#     "Type": "Git",
+#     "Git": {
+#       "RepositoryUrl": "https://github.com/your-org/mockery-mocks.git",
+#       "Branch": "main",
+#       "ClonePath": "/app/mocks",
+#       "AccessToken": ""  # Add token for private repos
+#     }
+#   }
+# }
 
-# 2. Run container with volume mount to local .mocks directory
-docker run -d --name mockery -p 8080:8080 \
-  -v "$(pwd)/.mocks:/app/mocks/mocks" \
-  -e ASPNETCORE_ENVIRONMENT=Development \
-  mockery:latest
+# 2. Build and run with docker-compose
+docker-compose up -d
 
-# On Windows (PowerShell or CMD), use absolute path:
-docker run -d --name mockery -p 8080:8080 \
-  -v "C:\path\to\Mockery\.mocks:/app/mocks/mocks" \
-  -e ASPNETCORE_ENVIRONMENT=Development \
-  mockery:latest
-
-# 3. Test the endpoints
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
-curl -i -H "X-Mock-ID: FooBar/5678" http://localhost:8080/api/mock
-curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
+# 3. Test the endpoints (using mocks from your Git repository)
+curl -i -H "X-Mock-ID: test/test" http://localhost:8080/api/mock
 
 # 4. Check container logs
-docker logs mockery
+docker-compose logs -f mockery
 
-# 5. Stop and remove container
+# 5. Stop and remove
+docker-compose down
+```
+
+**Important:**
+- Docker always uses Git mode (configured in `appsettings.Production.json`)
+- No environment variables needed for Git configuration
+- The `docker-compose.yml` includes health checks and volume persistence
+- Repository is cloned on first startup and persisted in a Docker volume
+
+### Using Pre-built Docker Images
+
+Pull and run the latest published image from Docker Hub:
+
+```bash
+# Pull latest version
+docker pull davhar/mockery:latest
+
+# Run the image (Git repository configured in appsettings.Production.json)
+docker run -d --name mockery -p 8080:8080 \
+  -v mockery-data:/app/mocks \
+  davhar/mockery:latest
+
+# Or use a specific version
+docker pull davhar/mockery:1.0.0
+docker run -d --name mockery -p 8080:8080 \
+  -v mockery-data:/app/mocks \
+  davhar/mockery:1.0.0
+
+# Stop and remove
 docker stop mockery && docker rm mockery
 ```
 
-**Note**: The volume mount maps your local `.mocks` directory to `/app/mocks/mocks` in the container because the service creates a nested directory structure.
+**Note:** Pre-built images use the Git configuration baked into `appsettings.Production.json` at build time. To use a custom Git repository, build your own image with updated configuration.
 
-#### Production Mode (Git-Based)
+### Publishing Docker Images to Docker Hub
 
-Run Mockery with Git repository for mocks:
+To publish your own Docker image to Docker Hub:
 
 ```bash
-docker build -t mockery:latest .
-docker run -d --name mockery -p 8080:8080 \
-  -e GIT_REPOSITORY_URL="https://github.com/your-org/mockery-mocks.git" \
-  -e GIT_BRANCH="main" \
-  -e GIT_CLONE_PATH="/app/mocks" \
-  mockery:latest
+# 1. Login to Docker Hub
+docker login -u davhar
+
+# You'll be prompted for your password or access token
+
+# 2. Build the image with your repository URL and Git configuration
+# Make sure src/Mockery/appsettings.Production.json has the correct Git repository
+docker build -t davhar/mockery:latest .
+
+# 3. Optionally tag with a version number
+docker tag davhar/mockery:latest davhar/mockery:1.0.0
+
+# 4. Push to Docker Hub
+docker push davhar/mockery:latest
+docker push davhar/mockery:1.0.0
+
+# 5. Verify the image was pushed
+docker pull davhar/mockery:latest
 ```
+
+**Important:**
+- Update `src/Mockery/appsettings.Production.json` with your Git repository URL before building
+- The Git configuration is baked into the image at build time
+- Use semantic versioning for version tags (e.g., 1.0.0, 1.1.0)
+- Always push both `latest` and a specific version tag
+
+### Publishing Helm Charts to Docker Hub
+
+To publish the Helm chart as an OCI artifact to Docker Hub:
+
+```bash
+# 1. Package the Helm chart
+helm package charts/mockery
+
+# This creates: mockery-1.0.0.tgz
+
+# 2. Login to Docker Hub OCI registry
+helm registry login registry-1.docker.io -u davhar
+
+# You'll be prompted for your password or access token
+
+# 3. Push the chart to Docker Hub
+helm push mockery-1.0.0.tgz oci://registry-1.docker.io/davhar
+
+# 4. Verify by pulling the chart
+helm pull oci://registry-1.docker.io/davhar/mockery --version 1.0.0
+```
+
+The chart will be available at: `oci://registry-1.docker.io/davhar/mockery`
+
+### Deploying to Kubernetes with Helm
+
+Install Mockery using the Helm chart published to Docker Hub:
+
+```bash
+# Install from OCI registry
+# Note: Git repository is configured in the Docker image via appsettings.Production.json
+helm install mockery oci://registry-1.docker.io/davhar/mockery \
+  --version 1.0.0 \
+  --namespace dev \
+  --create-namespace
+
+# Customize with values file (optional)
+helm install mockery oci://registry-1.docker.io/davhar/mockery \
+  --version 1.0.0 \
+  --namespace dev \
+  --values my-values.yaml
+
+# Upgrade existing installation
+helm upgrade mockery oci://registry-1.docker.io/davhar/mockery \
+  --version 1.0.0 \
+  --namespace dev
+
+# Uninstall
+helm uninstall mockery --namespace dev
+```
+
+**Key Helm Configuration Options:**
+
+```yaml
+# Example my-values.yaml
+# Git repository configuration is baked into the Docker image
+# You only need to customize these settings if different from defaults
+
+config:
+  aspnetcoreEnvironment: "Production"  # Always use Production for Kubernetes
+
+persistence:
+  enabled: true  # Required for Git repository storage
+  size: 1Gi
+  storageClass: ""  # Use cluster default
+
+replicaCount: 2
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+```
+
+For more Helm configuration options, see [charts/mockery/values.yaml](charts/mockery/values.yaml).
 
 ## Usage
 
@@ -125,7 +260,7 @@ curl -i -H "X-Mock-ID: test/test" -H "Host: mockery.local.com"  http://mockery.l
 ### Mock Repository Structure
 
 ```
-.mocks/
+mocks/
 ├── FooBar/
 │   ├── 1234.json
 │   ├── 1234.headers.json        # Optional custom headers
@@ -160,46 +295,48 @@ Optional `.headers.json` file alongside mock file:
 
 Mockery supports two storage modes configured via `appsettings.json`:
 
-#### Local Mode (Development - Default)
+#### Local Mode (Development)
 
 **Configuration in `appsettings.Development.json`:**
 ```json
 {
   "MockRepository": {
     "Type": "Local",
-    "LocalPath": "./.mocks"
+    "LocalPath": "../.."
   }
 }
 ```
 
 **Characteristics:**
 - No Git operations or dependencies
-- Direct file system access
-- Changes picked up immediately
+- Direct file system access from `mocks/` directory at repository root
+- Changes picked up immediately (no restart needed)
 - No environment variables required
-- Perfect for local development and testing
+- Perfect for local development with `dotnet run`
 
-#### Git Mode (Production)
+#### Git Mode (Production/Docker)
 
-**Configuration in `appsettings.Production.json` (or omit for default):**
+**Configuration in `appsettings.Production.json`:**
 ```json
 {
   "MockRepository": {
-    "Type": "Git"
+    "Type": "Git",
+    "Git": {
+      "RepositoryUrl": "https://github.com/your-org/mockery-mocks.git",
+      "Branch": "main",
+      "ClonePath": "/app/mocks",
+      "AccessToken": ""
+    }
   }
 }
 ```
-
-**Required Environment Variables:**
-- `GIT_REPOSITORY_URL`: URL of Git repository containing mocks (required)
-- `GIT_BRANCH`: Git branch to use (default: `main`)
-- `GIT_CLONE_PATH`: Local path for repository clone (default: `/app/mocks`)
-- `GIT_ACCESS_TOKEN`: Access token for private repositories (optional)
 
 **Characteristics:**
 - Full Git version control
 - Automatic clone on startup
 - Pull latest changes on restart
+- All configuration in appsettings (no environment variables)
+- Required for Docker/production deployments
 - Ideal for production/staging environments
 
 ### Rate Limiting (appsettings.json)
@@ -241,7 +378,7 @@ dotnet test src/Mockery.Test/Mockery.Test.csproj
 
 ```
 Mockery/
-├── .mocks/                                # Sample mocks (development)
+├── mocks/                                 # Sample mocks (development)
 │   ├── FooBar/
 │   │   ├── 1234.json
 │   │   ├── 1234.headers.json
@@ -249,6 +386,7 @@ Mockery/
 │   └── Products/
 │       ├── hydrate.json
 │       └── error.json
+├── docker-compose.yml                     # Docker Compose configuration
 └── src/
     ├── Mockery/                           # Main application
     │   ├── Controllers/                   # API controllers
@@ -260,7 +398,10 @@ Mockery/
     │   ├── Services/                     # Supporting services
     │   ├── Middleware/                   # Rate limiting middleware
     │   ├── Models/                       # Domain models
-    │   └── Configuration/                # Configuration classes
+    │   ├── Configuration/                # Configuration classes
+    │   ├── appsettings.json              # Base configuration
+    │   ├── appsettings.Development.json  # Local development config
+    │   └── appsettings.Production.json   # Docker/production config
     └── Mockery.Test/                     # Unit tests
         ├── Repository/
         │   ├── GitMockRepositoryTests.cs
@@ -272,7 +413,7 @@ Mockery/
 
 - `GET /health/live`: Liveness probe (application is running)
 - `GET /health/ready`: Readiness probe
-  - **Local Mode**: Checks if `.mocks/` directory exists
+  - **Local Mode**: Checks if `mocks/` directory exists at repository root
   - **Git Mode**: Checks if Git repository is accessible
 - `GET /health/startup`: Startup probe (repository initialization complete)
 

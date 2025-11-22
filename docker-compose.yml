@@ -5,23 +5,17 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: mockery
-    env_file: .env
     ports:
       - "8080:8080"
     environment:
-      # Git Repository Configuration
-      - GIT_REPOSITORY_URL=${GIT_REPOSITORY_URL}
-      - GIT_BRANCH=${GIT_BRANCH:-main}
-      - GIT_CLONE_PATH=/mocks
-      - GIT_ACCESS_TOKEN=${GIT_ACCESS_TOKEN}
-
-      # ASP.NET Core Environment
+      # ASP.NET Core Environment (defaults to Production)
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
 
-    # Optional: Persist cloned repository across container restarts
+    # Optional: Persist cloned Git repository across container restarts
+    # Uncomment if using Git mode (configured in appsettings.Production.json)
     volumes:
-      - mockery-data:/mocks
+      - mockery-data:/app/mocks
 
     # Health check configuration
     healthcheck:

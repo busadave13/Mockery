@@ -1,0 +1,75 @@
+mode: ContinuousDeployment
+branches:
+  main:
+    mode: ContinuousDeployment
+    tag: ''
+    increment: Patch
+    prevent-increment-of-merged-branch-version: true
+    track-merge-target: false
+    source-branches: ['develop', 'feature', 'support', 'hotfix']
+    tracks-release-branches: false
+    is-release-branch: false
+    is-mainline: true
+  develop:
+    mode: ContinuousDeployment
+    tag: 'alpha'
+    increment: Minor
+    prevent-increment-of-merged-branch-version: false
+    track-merge-target: true
+    tracks-release-branches: true
+    is-release-branch: false
+    is-mainline: false
+    source-branches: []
+  feature:
+    mode: ContinuousDeployment
+    tag: 'alpha'
+    increment: Inherit
+    prevent-increment-of-merged-branch-version: false
+    track-merge-target: false
+    tracks-release-branches: false
+    is-release-branch: false
+    is-mainline: false
+    source-branches: ['develop', 'main', 'release', 'feature', 'support', 'hotfix']
+  pull-request:
+    mode: ContinuousDeployment
+    tag: 'pr'
+    increment: Inherit
+    prevent-increment-of-merged-branch-version: false
+    track-merge-target: false
+    tracks-release-branches: false
+    is-release-branch: false
+    is-mainline: false
+    source-branches: ['develop', 'main', 'release', 'feature', 'support', 'hotfix']
+  release:
+    mode: ContinuousDeployment
+    tag: 'beta'
+    increment: None
+    prevent-increment-of-merged-branch-version: true
+    track-merge-target: false
+    tracks-release-branches: false
+    is-release-branch: true
+    is-mainline: false
+    source-branches: ['develop', 'main', 'support', 'release']
+  hotfix:
+    mode: ContinuousDeployment
+    tag: 'beta'
+    increment: Patch
+    prevent-increment-of-merged-branch-version: false
+    track-merge-target: false
+    tracks-release-branches: false
+    is-release-branch: false
+    is-mainline: false
+    source-branches: ['release', 'main', 'support', 'hotfix']
+  support:
+    mode: ContinuousDeployment
+    tag: ''
+    increment: Patch
+    prevent-increment-of-merged-branch-version: true
+    track-merge-target: false
+    tracks-release-branches: false
+    is-release-branch: false
+    is-mainline: true
+    source-branches: ['main']
+ignore:
+  sha: []
+merge-message-formats: {}

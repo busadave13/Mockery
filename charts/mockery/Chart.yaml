@@ -1,6 +1,6 @@
 apiVersion: v2
 name: mockery
-description: A Helm chart for Mockery - REST API service for serving HTTP mock responses
+description: A Helm chart for Mockery - REST API service for serving HTTP mock responses from Git repositories
 type: application
 version: 1.0.0
 appVersion: "1.0.0"
@@ -9,6 +9,19 @@ keywords:
   - mock
   - api
   - testing
+  - rest
+  - git
 home: https://github.com/busadave13/Mockery
+sources:
+  - https://github.com/busadave13/Mockery
+icon: https://raw.githubusercontent.com/busadave13/Mockery/main/.github/assets/icon.png
 maintainers:
   - name: davhar
+    url: https://github.com/busadave13
+annotations:
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/displayName: Mockery
+  artifacthub.io/license: MIT
+  artifacthub.io/links: |
+    - name: Docker Hub
+      url: https://hub.docker.com/r/davhar/mockery
