@@ -26,7 +26,18 @@
       "Bash(fi)",
       "Bash(printenv:*)",
       "Bash(dotnet remove:*)",
-      "Bash(dotnet add package:*)"
+      "Bash(dotnet add package:*)",
+      "Bash(helm list:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl delete:*)",
+      "Bash(helm install:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl exec:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl run:*)",
+      "Bash(helm uninstall:*)",
+      "Bash(kubectl rollout:*)",
+      "Bash(powershell -Command \"kubectl exec -n dev deployment/mockery-dep -- ls -la /app/mocks/test\")"
     ],
     "deny": [],
     "ask": []
