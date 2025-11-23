@@ -378,8 +378,8 @@ Mockery includes built-in OpenTelemetry integration for comprehensive observabil
 
 - **Logs**: Structured logging with OpenTelemetry exporters
 - **Traces**: Distributed tracing with automatic HTTP instrumentation
-- **Metrics**: Request counts, durations, and custom application metrics
-- **Package**: Uses `Shared.K8.Common` NuGet package from public NuGet.org
+- **Metrics**: Request counts, durations, and custom application metrics (exposed at `/metrics` endpoint)
+- **Package**: Uses `Shared.K8.Common` v1.0.1 NuGet package from public NuGet.org
 
 ### Development Environment (Aspire Dashboard)
 
@@ -391,6 +391,9 @@ docker-compose up --build
 
 # Access Aspire Dashboard
 open http://localhost:18888
+
+# View metrics endpoint
+curl http://localhost:8080/metrics
 ```
 
 **Dashboard Features:**
@@ -399,23 +402,58 @@ open http://localhost:18888
 - **Metrics**: Monitor request rates, latencies, and custom metrics
 - **Resources**: See service information and health status
 
-### Production Environment
+**Configuration:**
+- Environment variable: `OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889`
+- Set automatically in `docker-compose.yml`
 
-In production (Kubernetes), telemetry is exported to:
-- Aspire cluster at `http://aspire.aspire.svc.cluster.local:18889`
-- Or Jaeger for traces in "Kubernetes-Mixed" mode
+### Production Environment (Kubernetes)
+
+In production, telemetry is exported via OTLP to your observability backend:
+
+**Default Configuration:**
+- OTLP endpoint: `http://aspire.monitor.svc.cluster.local:18889`
+- Configurable via Helm chart `values.yaml` (`config.otlpEndpoint`)
+- Metrics endpoint `/metrics` available for Prometheus scraping
+
+**Customizing OTLP Endpoint:**
+
+```yaml
+# Example Helm values.yaml
+config:
+  otlpEndpoint: "http://your-otel-collector:4317"
+```
 
 ### Configuration
 
-OpenTelemetry is configured in `Program.cs`:
+OpenTelemetry is configured in `Program.cs` with environment variable support:
 
 ```csharp
-// Add OpenTelemetry observability
-builder.AddObservability();
+// Add OpenTelemetry observability with custom endpoint override
+var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+if (!string.IsNullOrEmpty(otlpEndpoint))
+{
+    var customEndpoints = new List<OtlpEndpoints>
+    {
+        new OtlpEndpoints(
+            builder.Environment.EnvironmentName,
+            otlpEndpoint,
+            otlpEndpoint,
+            otlpEndpoint)
+    };
+    builder.AddObservability(endpointOverrides: customEndpoints);
+}
+else
+{
+    builder.AddObservability();
+}
 
 // Add OpenTelemetry observability middleware
 app.UseObservability();
 ```
+
+**Environment Variables:**
+- `OTEL_EXPORTER_OTLP_ENDPOINT`: Custom OTLP endpoint URL (optional)
+- If not set, uses package defaults based on environment
 
 ## CI/CD Pipeline
 
@@ -473,7 +511,7 @@ Repository  MockRepository
 ### Core Dependencies
 - **.NET 9.0**: Latest .NET framework
 - **LibGit2Sharp**: Git operations for production mode
-- **Shared.K8.Common**: Observability and common utilities (public NuGet package)
+- **Shared.K8.Common v1.0.1**: OpenTelemetry observability with endpoint override support (public NuGet package)
 
 ### Development Dependencies
 - **xUnit**: Unit testing framework

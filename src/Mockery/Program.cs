@@ -103,8 +103,27 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add OpenTelemetry observability
-builder.AddObservability();
+// Add OpenTelemetry observability with custom endpoints
+// Check if OTEL_EXPORTER_OTLP_ENDPOINT is set, otherwise use default
+var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+if (!string.IsNullOrEmpty(otlpEndpoint))
+{
+    // Use custom endpoint from environment variable
+    var customEndpoints = new List<OtlpEndpoints>
+    {
+        new OtlpEndpoints(
+            builder.Environment.EnvironmentName,
+            otlpEndpoint,
+            otlpEndpoint,
+            otlpEndpoint)
+    };
+    builder.AddObservability(endpointOverrides: customEndpoints);
+}
+else
+{
+    // Use default endpoints from Shared.K8.Common
+    builder.AddObservability();
+}
 
 var app = builder.Build();
 
