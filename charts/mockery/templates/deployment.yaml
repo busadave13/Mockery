@@ -30,6 +30,8 @@ spec:
           env:
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.config.aspnetcoreEnvironment | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.config.otlpEndpoint | default "http://aspire.monitor.svc.cluster.local:18889" | quote }}
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}
