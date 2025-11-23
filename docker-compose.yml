@@ -1,4 +1,18 @@
 services:
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    container_name: aspire-dashboard
+    restart: unless-stopped
+    ports:
+      - "18888:18888"  # Dashboard UI
+      - "18889:18889"  # OpenTelemetry gRPC endpoint
+    environment:
+      - DOTNET_LOGS_CONSOLE_FORMAT=Json
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - DOTNET_ASPIRE_AUTHENTICATION_DISABLED=true
+    networks:
+      - aspire_network
+
   mockery:
     build:
       context: .
@@ -26,3 +40,11 @@ services:
       start_period: 40s
 
     restart: unless-stopped
+    networks:
+      - aspire_network
+    depends_on:
+      - aspire-dashboard
+
+networks:
+  aspire_network:
+    driver: bridge
