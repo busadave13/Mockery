@@ -49,4 +49,13 @@ public class LocalFileMockRepository : FileSystemMockRepositoryBase
     }
 
     // RefreshAsync is inherited from base class and does nothing (no refresh needed for local files)
+
+    /// <summary>
+    /// Override to include "mocks" subdirectory for local development structure.
+    /// Local structure: ClonePath/mocks/{ServiceName}/{FileId}.*
+    /// </summary>
+    protected override string GetMocksRootPath()
+    {
+        return Path.Combine(_options.ClonePath, "mocks");
+    }
 }
