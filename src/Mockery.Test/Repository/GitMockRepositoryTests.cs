@@ -27,9 +27,9 @@ public class GitMockRepositoryTests : IDisposable
             AccessToken = ""
         };
 
-        // Create test directory structure
+        // Create test directory structure (Git mode uses ClonePath directly, no "mocks" subdirectory)
         Directory.CreateDirectory(_testRepoPath);
-        Directory.CreateDirectory(Path.Combine(_testRepoPath, "mocks", "TestService"));
+        Directory.CreateDirectory(Path.Combine(_testRepoPath, "TestService"));
     }
 
     public void Dispose()
@@ -45,7 +45,7 @@ public class GitMockRepositoryTests : IDisposable
     {
         // Arrange
         var mockContent = "{\"test\":\"data\"}";
-        var mockFilePath = Path.Combine(_testRepoPath, "mocks", "TestService", "123.json");
+        var mockFilePath = Path.Combine(_testRepoPath, "TestService", "123.json");
         await File.WriteAllTextAsync(mockFilePath, mockContent);
 
         var optionsMock = Options.Create(_options);
@@ -108,8 +108,8 @@ public class GitMockRepositoryTests : IDisposable
     {
         // Arrange
         var mockContent = "{\"test\":\"data\"}";
-        var mockFilePath = Path.Combine(_testRepoPath, "mocks", "TestService", "456.json");
-        var headersFilePath = Path.Combine(_testRepoPath, "mocks", "TestService", "456.headers.json");
+        var mockFilePath = Path.Combine(_testRepoPath, "TestService", "456.json");
+        var headersFilePath = Path.Combine(_testRepoPath, "TestService", "456.headers.json");
 
         await File.WriteAllTextAsync(mockFilePath, mockContent);
         await File.WriteAllTextAsync(headersFilePath, "{\"X-Custom\":\"Value\"}");
@@ -135,7 +135,7 @@ public class GitMockRepositoryTests : IDisposable
     {
         // Arrange
         var headersContent = "{\"X-Custom-Header\":\"CustomValue\",\"X-Request-ID\":\"123\"}";
-        var headersFilePath = Path.Combine(_testRepoPath, "mocks", "TestService", "789.headers.json");
+        var headersFilePath = Path.Combine(_testRepoPath, "TestService", "789.headers.json");
         await File.WriteAllTextAsync(headersFilePath, headersContent);
 
         var optionsMock = Options.Create(_options);
