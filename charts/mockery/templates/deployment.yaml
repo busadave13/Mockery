@@ -32,6 +32,8 @@ spec:
               value: {{ .Values.config.aspnetcoreEnvironment | quote }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.config.otlpEndpoint | quote }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "grpc"
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}
