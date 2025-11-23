@@ -5,7 +5,7 @@ namespace: dev
 replicaCount: 2
 
 image:
-  name: ghcr.io/busadave13/mockery:latest
+  name: mockery-mockery:latest
   pullPolicy: Always
 
 service:
@@ -34,6 +34,8 @@ config:
     otlpEndpoint: "http://aspire.monitor.svc.cluster.local:18889"
     # OTLP protocol (grpc or http/protobuf)
     otlpProtocol: "grpc"
+    # OTLP API key for Aspire dashboard authentication
+    otlpApiKey: "aspire"
 
 # Persistence for Git repository storage
 persistence:

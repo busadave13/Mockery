@@ -36,6 +36,8 @@ spec:
               value: {{ .Values.config.openTelemetry.otlpEndpoint | quote }}
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
               value: {{ .Values.config.openTelemetry.otlpProtocol | quote }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              value: {{ printf "x-otlp-api-key=%s" .Values.config.openTelemetry.otlpApiKey | quote }}
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

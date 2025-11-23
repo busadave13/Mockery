@@ -28,11 +28,7 @@ public static class OpenTelemetryExtensions
 
         var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
         var otlpProtocol = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_PROTOCOL") ?? "grpc";
-
-        Console.WriteLine($"[OpenTelemetry] Service Name: {serviceName}");
-        Console.WriteLine($"[OpenTelemetry] OTLP Endpoint: {otlpEndpoint ?? "not set (using console)"}");
-        Console.WriteLine($"[OpenTelemetry] OTLP Protocol: {otlpProtocol}");
-        Console.WriteLine($"[OpenTelemetry] Environment: {builder.Environment.EnvironmentName}");
+        var otlpHeaders = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_HEADERS");
 
         // Configure logging
         builder.Logging.AddOpenTelemetry(options =>
@@ -47,11 +43,9 @@ public static class OpenTelemetryExtensions
                 try
                 {
                     options.AddOtlpExporter();
-                    Console.WriteLine($"[OpenTelemetry] OTLP Logs Exporter configured for: {otlpEndpoint}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[OpenTelemetry] Error configuring OTLP Logs Exporter: {ex.Message}");
                     options.AddConsoleExporter();
                 }
             }
@@ -105,11 +99,9 @@ public static class OpenTelemetryExtensions
                 try
                 {
                     metrics.AddOtlpExporter();
-                    Console.WriteLine($"[OpenTelemetry] OTLP Metrics Exporter configured for: {otlpEndpoint}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[OpenTelemetry] Error configuring OTLP Metrics Exporter: {ex.Message}");
                     metrics.AddConsoleExporter();
                 }
             }
@@ -137,11 +129,9 @@ public static class OpenTelemetryExtensions
                 try
                 {
                     tracing.AddOtlpExporter();
-                    Console.WriteLine($"[OpenTelemetry] OTLP Tracing Exporter configured for: {otlpEndpoint}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[OpenTelemetry] Error configuring OTLP Tracing Exporter: {ex.Message}");
                     tracing.AddConsoleExporter();
                 }
             }
