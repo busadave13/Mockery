@@ -4,7 +4,7 @@ using Mockery.Middleware;
 using Mockery.Repository;
 using Mockery.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Shared.Telemetry;
+using Shared.K8.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 # Build image
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
-COPY ["packages/", "packages/"]
 COPY ["NuGet.config", "./"]
 COPY ["src/Mockery/Mockery.csproj", "Mockery/"]
 RUN dotnet restore "Mockery/Mockery.csproj"

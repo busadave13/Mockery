@@ -59,7 +59,7 @@ public class MockController : ControllerBase
             }
             else
             {
-                _logger.LogWarning("X-Mock-StatusCode header is not a valid integer: {Value}", statusCodeHeader);
+                _logger.LogWarning("X-Mock-StatusCode header is not a valid integer: {Value}", statusCodeHeader.ToString());
                 return BadRequest(new { error = "X-Mock-StatusCode must be a valid integer" });
             }
         }
@@ -70,7 +70,8 @@ public class MockController : ControllerBase
 
             if (result == null)
             {
-                _logger.LogWarning("Mock not found for IDs: {MockIds}", string.Join(", ", mockIds));
+                var mockIdsString = string.Join(", ", mockIds);
+                _logger.LogWarning("Mock not found for IDs: {MockIds}", mockIdsString);
                 return NotFound(new
                 {
                     error = "Mock not found",
@@ -103,7 +104,8 @@ public class MockController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving mock for IDs: {MockIds}", string.Join(", ", mockIds));
+            var mockIdsString = string.Join(", ", mockIds);
+            _logger.LogError(ex, "Error retrieving mock for IDs: {MockIds}", mockIdsString);
             return StatusCode(500, new { error = "Internal server error", message = ex.Message });
         }
     }

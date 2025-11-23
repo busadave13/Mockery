@@ -9,7 +9,7 @@ Mockery is a REST API service for serving HTTP mock responses. It provides a sin
 - **Development**: Quickly test locally with immediate mock file changes (no Git setup required)
 - **Production**: Manage mocks through standard Git workflows (commits, pull requests, version control)
 
-The service is built with ASP.NET Core 9.0+ and uses LibGit2Sharp for Git operations in production mode. No database or authentication required.
+The service is built with ASP.NET Core 9.0+ and uses LibGit2Sharp for Git operations in production mode. OpenTelemetry observability is provided via the Shared.K8.Common package. No database or authentication required.
 
 ## Build and Development Commands
 
@@ -65,19 +65,29 @@ The repository includes sample mocks in `mocks/` that work immediately:
 
 ### Docker Commands
 
-**Docker Desktop (Local Mocks)**
+**Docker Desktop (Local Mocks with Aspire Dashboard)**
 
-When running locally with Docker Desktop, use `docker-compose` which is configured to use Development mode with local mocks:
+When running locally with Docker Desktop, use `docker-compose` which is configured to use Development mode with local mocks and includes Aspire Dashboard for observability:
 
 ```bash
 # 1. Run with docker-compose (uses local mocks from ./mocks folder)
 docker-compose up --build
 
-# 2. Test endpoints (port 8080)
+# 2. Access services:
+# - Mockery API: http://localhost:8080
+# - Aspire Dashboard: http://localhost:18888
+
+# 3. Test endpoints (port 8080)
 curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
 
-# 3. Stop containers
+# 4. View telemetry in Aspire Dashboard
+# Open http://localhost:18888 in your browser to see:
+# - Structured logs from Mockery service
+# - Distributed traces of HTTP requests
+# - Metrics (request counts, durations, etc.)
+
+# 5. Stop containers
 docker-compose down
 ```
 
@@ -86,6 +96,7 @@ docker-compose down
 - Mounts local `./mocks` folder to `/app/mocks` (read-only)
 - Uses Local repository mode (no Git operations)
 - Changes to mock files are picked up immediately (no container restart needed)
+- Includes Aspire Dashboard service on port 18888 for telemetry visualization
 
 **Production Docker (Git Repository)**
 
@@ -343,6 +354,43 @@ Mockery uses ASP.NET Core's environment-based configuration system:
 }
 ```
 
+### Observability
+
+**OpenTelemetry Integration:**
+
+Mockery includes built-in OpenTelemetry observability via the `Shared.K8.Common` NuGet package (v1.0.0):
+
+```csharp
+// In Program.cs
+using Shared.K8.Common;
+
+// Add OpenTelemetry observability
+builder.AddObservability();
+
+// Add OpenTelemetry observability middleware
+app.UseObservability();
+```
+
+**Features:**
+- **Logs**: Structured logging with OpenTelemetry exporters
+- **Traces**: Distributed tracing with automatic HTTP instrumentation
+- **Metrics**: Request counts, durations, and custom application metrics
+
+**Development Environment (Aspire Dashboard):**
+- When running with `docker-compose up`, telemetry is exported to Aspire Dashboard
+- Access dashboard at http://localhost:18888
+- Visualize logs, traces, and metrics in real-time
+
+**Production Environment (Kubernetes):**
+- Telemetry exported to Aspire cluster at `http://aspire.aspire.svc.cluster.local:18889`
+- Or Jaeger for traces in "Kubernetes-Mixed" mode
+- Configuration handled automatically by `Shared.K8.Common` package
+
+**Package Information:**
+- Package: `Shared.K8.Common` v1.0.0
+- Source: Public NuGet.org (no authentication required)
+- Provides environment-aware OTLP endpoint configuration
+
 ### Mock Retrieval Flow
 
 1. Client sends GET request to `/api/mock` with headers:
@@ -409,23 +457,34 @@ Used by Kubernetes/container orchestrators for health monitoring.
 
 ## Deployment
 
-### Azure Container Apps
+### GitHub Container Registry (GHCR)
 
-**GitHub Actions Workflow:** `.github/workflows/build-deploy.yml`
+**GitHub Actions Workflow:** `.github/workflows/publish-docker-helm.yml`
+
+**Triggers:**
+- Pull request merges to main branch
+- Manual workflow dispatch
 
 **Jobs:**
-1. Build and Test:
-   - Restore: `dotnet restore src/Mockery/Mockery.csproj`
-   - Build: `dotnet build src/Mockery/Mockery.csproj -c Release`
-   - Test: `dotnet test src/Mockery.Test/Mockery.Test.csproj`
-   - Push to `dasacr.azurecr.io/mockery`
+1. **Tests**: Runs all 44 unit tests
+2. **Builds**: Compiles the application and Docker image
+3. **Publishes**: Pushes Docker image and Helm chart to GitHub Container Registry
 
-2. Deploy to Azure Container App `mockery` in resource group `mockery`
+**Features:**
+- No authentication setup required (uses GITHUB_TOKEN)
+- Automatic versioning with GitVersion
+- OCI-based Helm chart publishing
+- Docker images published to `ghcr.io/busadave13/mockery`
+- Helm charts published to `oci://ghcr.io/busadave13/helm/mockery`
 
-**Required Secrets:**
-- `MOCKERY_AZURE_CREDENTIALS`
-- `MOCKERY_REGISTRY_USERNAME`
-- `MOCKERY_REGISTRY_PASSWORD`
+**Accessing Published Artifacts:**
+```bash
+# Pull Docker image
+docker pull ghcr.io/busadave13/mockery:latest
+
+# Install Helm chart
+helm install mockery oci://ghcr.io/busadave13/helm/mockery --version 1.0.0
+```
 
 ## Common Development Patterns
 
