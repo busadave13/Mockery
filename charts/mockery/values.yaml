@@ -26,6 +26,9 @@ config:
   # ASP.NET Core Environment (always use Production for Kubernetes)
   # Git repository configuration is baked into the Docker image via appsettings.Production.json
   aspnetcoreEnvironment: "Production"
+  # OpenTelemetry OTLP endpoint for traces/metrics/logs
+  # Default points to Aspire dashboard in monitor namespace
+  otlpEndpoint: "http://aspire.monitor.svc.cluster.local:18889"
 
 # Persistence for Git repository storage
 persistence:
