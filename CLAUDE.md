@@ -358,14 +358,30 @@ Mockery uses ASP.NET Core's environment-based configuration system:
 
 **OpenTelemetry Integration:**
 
-Mockery includes built-in OpenTelemetry observability via the `Shared.K8.Common` NuGet package (v1.0.0):
+Mockery includes built-in OpenTelemetry observability via the `Shared.K8.Common` NuGet package (v1.0.1):
 
 ```csharp
 // In Program.cs
 using Shared.K8.Common;
 
-// Add OpenTelemetry observability
-builder.AddObservability();
+// Add OpenTelemetry observability with custom endpoint override
+var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+if (!string.IsNullOrEmpty(otlpEndpoint))
+{
+    var customEndpoints = new List<OtlpEndpoints>
+    {
+        new OtlpEndpoints(
+            builder.Environment.EnvironmentName,
+            otlpEndpoint,
+            otlpEndpoint,
+            otlpEndpoint)
+    };
+    builder.AddObservability(endpointOverrides: customEndpoints);
+}
+else
+{
+    builder.AddObservability();
+}
 
 // Add OpenTelemetry observability middleware
 app.UseObservability();
@@ -374,22 +390,24 @@ app.UseObservability();
 **Features:**
 - **Logs**: Structured logging with OpenTelemetry exporters
 - **Traces**: Distributed tracing with automatic HTTP instrumentation
-- **Metrics**: Request counts, durations, and custom application metrics
+- **Metrics**: Request counts, durations, and custom application metrics (exposed at `/metrics` endpoint)
 
 **Development Environment (Aspire Dashboard):**
 - When running with `docker-compose up`, telemetry is exported to Aspire Dashboard
+- Environment variable: `OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889`
 - Access dashboard at http://localhost:18888
 - Visualize logs, traces, and metrics in real-time
 
 **Production Environment (Kubernetes):**
-- Telemetry exported to Aspire cluster at `http://aspire.aspire.svc.cluster.local:18889`
-- Or Jaeger for traces in "Kubernetes-Mixed" mode
-- Configuration handled automatically by `Shared.K8.Common` package
+- Telemetry exported to Aspire via OTLP endpoint configured in Helm chart
+- Environment variable set in deployment: `OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire.monitor.svc.cluster.local:18889`
+- Metrics endpoint `/metrics` available for Prometheus scraping
+- Configuration customizable via `values.yaml` (`config.otlpEndpoint`)
 
 **Package Information:**
-- Package: `Shared.K8.Common` v1.0.0
+- Package: `Shared.K8.Common` v1.0.1
 - Source: Public NuGet.org (no authentication required)
-- Provides environment-aware OTLP endpoint configuration
+- Provides environment-aware OTLP endpoint configuration with override support
 
 ### Mock Retrieval Flow
 
