@@ -39,6 +39,15 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Gets the root path for mock files. Override in derived classes to customize path structure.
+    /// </summary>
+    protected virtual string GetMocksRootPath()
+    {
+        // Default: root is ClonePath (for Git mode where services are at root)
+        return _options.ClonePath;
+    }
+
     public async Task<(string Content, string Extension)?> FindMockFileAsync(string serviceName, string fileId)
     {
         if (!_initialized)
@@ -48,7 +57,7 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
 
         try
         {
-            var mocksPath = Path.Combine(_options.ClonePath, "mocks", serviceName);
+            var mocksPath = Path.Combine(GetMocksRootPath(), serviceName);
 
             if (!Directory.Exists(mocksPath))
             {
@@ -95,7 +104,7 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
 
         try
         {
-            var headersPath = Path.Combine(_options.ClonePath, "mocks", serviceName, $"{fileId}.headers.json");
+            var headersPath = Path.Combine(GetMocksRootPath(), serviceName, $"{fileId}.headers.json");
 
             if (!File.Exists(headersPath))
             {
