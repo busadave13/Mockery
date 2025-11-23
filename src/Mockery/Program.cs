@@ -4,6 +4,7 @@ using Mockery.Middleware;
 using Mockery.Repository;
 using Mockery.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Shared.K8.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -102,6 +103,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Add OpenTelemetry observability
+builder.AddObservability();
+
 var app = builder.Build();
 
 // Initialize mock repository on startup
@@ -129,6 +133,9 @@ if (app.Environment.IsDevelopment())
 
 // Add rate limiting middleware
 app.UseMiddleware<RateLimitingMiddleware>();
+
+// Add OpenTelemetry observability middleware
+app.UseObservability();
 
 app.UseCors();
 

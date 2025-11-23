@@ -129,9 +129,8 @@ jobs:
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.GITHUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: "latest"
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
       - name: Update Helm chart versions
         run: |

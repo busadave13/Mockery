@@ -2,7 +2,7 @@
 
 REST API service for serving HTTP mock responses with support for both local file system (development) and Git-based storage (production). Mockery enables:
 
-- **Local Development**: Instant testing with file system-based mocks (no Git setup required)
+- **Local Development**: Instant testing with file system-based mocks (no setup required)
 - **Production**: Full Git workflow management (commits, pull requests, version control)
 
 ## Features
@@ -15,25 +15,27 @@ REST API service for serving HTTP mock responses with support for both local fil
 - **Custom Headers**: Optional headers files for custom HTTP response headers
 - **Status Code Control**: Dynamic status code behavior via request headers
 - **Rate Limiting**: Dual-strategy rate limiting (per-IP and global)
+- **OpenTelemetry Observability**: Built-in logs, metrics, and traces
+- **Aspire Dashboard Integration**: Development environment includes Aspire Dashboard for telemetry visualization
 - **No Authentication**: Designed for development/testing environments
 - **Health Checks**: Kubernetes-compatible liveness, readiness, and startup probes
+- **Zero Setup**: No tokens, authentication, or environment configuration required
 
 ## Quick Start
 
 ### Running Locally with dotnet run (Development Mode - Recommended)
 
-**No Git setup required!** The service includes sample mocks and uses local file system by default.
+**No setup required!** The service includes sample mocks and uses local file system by default.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/mockery.git
+git clone https://github.com/busadave13/mockery.git
 cd mockery
 
 # 2. Navigate to the application directory
 cd src/Mockery
 
-# 3. Set environment to Development and run the service
-export ASPNETCORE_ENVIRONMENT=Development
+# 3. Run the service (Development mode is automatic)
 dotnet run --urls "http://localhost:8080"
 
 # 4. Test with included sample mocks
@@ -63,46 +65,47 @@ curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
 
 **Important:**
 - Always run `dotnet run` from the `src/Mockery` directory
-- **Must set** `ASPNETCORE_ENVIRONMENT=Development` before running (otherwise uses Production/Git mode)
+- Development mode is automatic when running locally
 - Mock files are located at repository root: `mocks/{ServiceName}/{FileId}.{extension}`
 
-### Running with Docker Compose (Production - Git Mode)
+### Running with Docker Compose (Development Mode with Observability)
 
-**Docker deployments always use Git mode.** Configure your Git repository in `src/Mockery/appsettings.Production.json` before building.
+**Docker Desktop uses Development mode with local mocks and includes Aspire Dashboard for observability.**
 
 ```bash
-# 1. Configure Git repository settings
-# Edit src/Mockery/appsettings.Production.json:
-# {
-#   "MockRepository": {
-#     "Type": "Git",
-#     "Git": {
-#       "RepositoryUrl": "https://github.com/your-org/mockery-mocks.git",
-#       "Branch": "main",
-#       "ClonePath": "/app/mocks",
-#       "AccessToken": ""  # Add token for private repos
-#     }
-#   }
-# }
+# 1. Build and run with docker-compose (includes Aspire Dashboard)
+docker-compose up --build
 
-# 2. Build and run with docker-compose
-docker-compose up -d
+# 2. Access services:
+# - Mockery API: http://localhost:8080
+# - Aspire Dashboard: http://localhost:18888
 
-# 3. Test the endpoints (using mocks from your Git repository)
-curl -i -H "X-Mock-ID: test/test" http://localhost:8080/api/mock
+# 3. Test the endpoints (using local mocks from ./mocks folder)
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
 
-# 4. Check container logs
+# 4. View telemetry in Aspire Dashboard
+# Open http://localhost:18888 in your browser to see:
+# - Structured logs from Mockery service
+# - Distributed traces of HTTP requests
+# - Metrics (request counts, durations, etc.)
+
+# 5. Check container logs
 docker-compose logs -f mockery
 
-# 5. Stop and remove
+# 6. Stop and remove
 docker-compose down
 ```
 
-**Important:**
-- Docker always uses Git mode (configured in `appsettings.Production.json`)
-- No environment variables needed for Git configuration
-- The `docker-compose.yml` includes health checks and volume persistence
-- Repository is cloned on first startup and persisted in a Docker volume
+**Services Included:**
+- **mockery**: Main application service (port 8080)
+- **aspire-dashboard**: Observability dashboard (port 18888)
+
+**Features:**
+- Uses Development environment (local mocks from `./mocks` folder)
+- Local mocks are mounted read-only into the container
+- Changes to local mock files are picked up immediately (no restart needed)
+- OpenTelemetry exports logs, metrics, and traces to Aspire Dashboard
 
 ### Using Pre-built Docker Images
 
@@ -129,69 +132,12 @@ docker stop mockery && docker rm mockery
 
 **Note:** Pre-built images use the Git configuration baked into `appsettings.Production.json` at build time. To use a custom Git repository, build your own image with updated configuration.
 
-### Publishing Docker Images to GitHub Container Registry
-
-To publish your own Docker image to GitHub Container Registry:
-
-```bash
-# 1. Login to GitHub Container Registry
-docker login ghcr.io -u busadave13
-
-# You'll be prompted for your personal access token
-
-# 2. Build the image with your repository URL and Git configuration
-# Make sure src/Mockery/appsettings.Production.json has the correct Git repository
-docker build -t ghcr.io/busadave13/mockery:latest .
-
-# 3. Optionally tag with a version number
-docker tag ghcr.io/busadave13/mockery:latest ghcr.io/busadave13/mockery:1.0.0
-
-# 4. Push to GitHub Container Registry
-docker push ghcr.io/busadave13/mockery:latest
-docker push ghcr.io/busadave13/mockery:1.0.0
-
-# 5. Verify the image was pushed
-docker pull ghcr.io/busadave13/mockery:latest
-```
-
-**Important:**
-- Update `src/Mockery/appsettings.Production.json` with your Git repository URL before building
-- The Git configuration is baked into the image at build time
-- Use semantic versioning for version tags (e.g., 1.0.0, 1.1.0)
-- Always push both `latest` and a specific version tag
-- Requires GitHub personal access token with `packages:write` permission
-
-### Publishing Helm Charts to GitHub Container Registry
-
-To publish the Helm chart as an OCI artifact to GitHub Container Registry:
-
-```bash
-# 1. Package the Helm chart
-helm package charts/mockery
-
-# This creates: mockery-1.0.0.tgz
-
-# 2. Login to GitHub Container Registry
-helm registry login ghcr.io -u busadave13
-
-# You'll be prompted for your personal access token
-
-# 3. Push the chart to GitHub Container Registry
-helm push mockery-1.0.0.tgz oci://ghcr.io/busadave13/helm
-
-# 4. Verify by pulling the chart
-helm pull oci://ghcr.io/busadave13/helm/mockery --version 1.0.0
-```
-
-The chart will be available at: `oci://ghcr.io/busadave13/helm/mockery`
-
 ### Deploying to Kubernetes with Helm
 
 Install Mockery using the Helm chart published to GitHub Container Registry:
 
 ```bash
 # Install from OCI registry
-# Note: Git repository is configured in the Docker image via appsettings.Production.json
 helm install mockery oci://ghcr.io/busadave13/helm/mockery \
   --version 1.0.0 \
   --namespace dev \
@@ -216,9 +162,6 @@ helm uninstall mockery --namespace dev
 
 ```yaml
 # Example my-values.yaml
-# Git repository configuration is baked into the Docker image
-# You only need to customize these settings if different from defaults
-
 config:
   aspnetcoreEnvironment: "Production"  # Always use Production for Kubernetes
 
@@ -255,7 +198,7 @@ curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678" http://localhost:8080/api/mock
 curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
 
 # When running in kubernetes with custom host header
-curl -i -H "X-Mock-ID: test/test" -H "Host: mockery.local.com"  http://mockery.local.com/api/mock
+curl -i -H "X-Mock-ID: test/test" -H "Host: mockery.local.com" http://mockery.local.com/api/mock
 ```
 
 ### Mock Repository Structure
@@ -312,7 +255,7 @@ Mockery supports two storage modes configured via `appsettings.json`:
 - No Git operations or dependencies
 - Direct file system access from `mocks/` directory at repository root
 - Changes picked up immediately (no restart needed)
-- No environment variables required
+- No environment variables or authentication required
 - Perfect for local development with `dotnet run`
 
 #### Git Mode (Production/Docker)
@@ -340,7 +283,7 @@ Mockery supports two storage modes configured via `appsettings.json`:
 - Required for Docker/production deployments
 - Ideal for production/staging environments
 
-### Rate Limiting (appsettings.json)
+### Rate Limiting
 
 ```json
 {
@@ -362,18 +305,25 @@ Mockery supports two storage modes configured via `appsettings.json`:
 
 ## Development
 
-### Building
+### Building and Testing
 
 ```bash
+# Restore packages and build
 dotnet restore
 dotnet build
+
+# Run all tests (44 comprehensive tests)
+dotnet test
+
+# Run with verbose output
+dotnet test --verbosity normal
 ```
 
-### Running Tests
-
-```bash
-dotnet test src/Mockery.Test/Mockery.Test.csproj
-```
+**Test Coverage:**
+- **Controllers**: MockController functionality, header validation, status codes
+- **Services**: ContentTypeResolver and MockService with various scenarios  
+- **Repository Layer**: Both GitMockRepository and LocalFileMockRepository
+- **All edge cases**: Error handling, file operations, initialization
 
 ### Project Structure
 
@@ -387,7 +337,9 @@ Mockery/
 │   └── Products/
 │       ├── hydrate.json
 │       └── error.json
-├── docker-compose.yml                     # Docker Compose configuration
+├── docker-compose.yml                     # Docker Compose with Aspire Dashboard
+├── Dockerfile                            # Production Docker image
+├── NuGet.config                          # NuGet configuration (public sources only)
 └── src/
     ├── Mockery/                           # Main application
     │   ├── Controllers/                   # API controllers
@@ -403,10 +355,10 @@ Mockery/
     │   ├── appsettings.json              # Base configuration
     │   ├── appsettings.Development.json  # Local development config
     │   └── appsettings.Production.json   # Docker/production config
-    └── Mockery.Test/                     # Unit tests
+    └── Mockery.Test/                     # Unit tests (44 tests)
+        ├── Controllers/
         ├── Repository/
-        │   ├── GitMockRepositoryTests.cs
-        │   └── LocalFileMockRepositoryTests.cs
+        ├── Services/
         └── ...
 ```
 
@@ -417,6 +369,71 @@ Mockery/
   - **Local Mode**: Checks if `mocks/` directory exists at repository root
   - **Git Mode**: Checks if Git repository is accessible
 - `GET /health/startup`: Startup probe (repository initialization complete)
+
+## Observability
+
+Mockery includes built-in OpenTelemetry integration for comprehensive observability.
+
+### OpenTelemetry Features
+
+- **Logs**: Structured logging with OpenTelemetry exporters
+- **Traces**: Distributed tracing with automatic HTTP instrumentation
+- **Metrics**: Request counts, durations, and custom application metrics
+- **Package**: Uses `Shared.K8.Common` NuGet package from public NuGet.org
+
+### Development Environment (Aspire Dashboard)
+
+When running with Docker Compose, telemetry is exported to Aspire Dashboard:
+
+```bash
+# Start services (includes Aspire Dashboard)
+docker-compose up --build
+
+# Access Aspire Dashboard
+open http://localhost:18888
+```
+
+**Dashboard Features:**
+- **Structured Logs**: View all application logs with filtering and search
+- **Traces**: Visualize distributed traces across HTTP requests
+- **Metrics**: Monitor request rates, latencies, and custom metrics
+- **Resources**: See service information and health status
+
+### Production Environment
+
+In production (Kubernetes), telemetry is exported to:
+- Aspire cluster at `http://aspire.aspire.svc.cluster.local:18889`
+- Or Jaeger for traces in "Kubernetes-Mixed" mode
+
+### Configuration
+
+OpenTelemetry is configured in `Program.cs`:
+
+```csharp
+// Add OpenTelemetry observability
+builder.AddObservability();
+
+// Add OpenTelemetry observability middleware
+app.UseObservability();
+```
+
+## CI/CD Pipeline
+
+The project includes a single, streamlined GitHub Actions workflow (`publish-docker-helm.yml`) that:
+
+1. **Tests**: Runs all 44 unit tests
+2. **Builds**: Compiles the application and Docker image
+3. **Publishes**: Pushes Docker image and Helm chart to GitHub Container Registry
+
+**Triggers:**
+- Pull request merges to main branch
+- Manual workflow dispatch
+
+**Features:**
+- No authentication setup required
+- Automatic versioning with GitVersion
+- OCI-based Helm chart publishing
+- Comprehensive build artifacts
 
 ## Architecture
 
@@ -450,6 +467,21 @@ Repository  MockRepository
 - No Git dependencies in local development mode
 - Easy to add new storage backends (e.g., Azure Blob, S3)
 - Shared file lookup logic prevents code duplication
+
+## Dependencies
+
+### Core Dependencies
+- **.NET 9.0**: Latest .NET framework
+- **LibGit2Sharp**: Git operations for production mode
+- **Shared.K8.Common**: Observability and common utilities (public NuGet package)
+
+### Development Dependencies
+- **xUnit**: Unit testing framework
+- **Moq**: Mocking framework for tests
+- **FluentAssertions**: Assertion library
+- **Microsoft.AspNetCore.Mvc.Testing**: Integration testing
+
+**All dependencies are public packages from NuGet.org - no private repositories or authentication required.**
 
 ## License
 

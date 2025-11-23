@@ -1,6 +1,19 @@
 services:
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    container_name: aspire-dashboard
+    restart: unless-stopped
+    ports:
+      - "18888:18888"  # Dashboard UI
+      - "18889:18889"  # OpenTelemetry gRPC endpoint
+    environment:
+      - DOTNET_LOGS_CONSOLE_FORMAT=Json
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - DOTNET_ASPIRE_AUTHENTICATION_DISABLED=true
+    networks:
+      - aspire_network
+
   mockery:
-    image: ghcr.io/busadave13/mockery:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -8,14 +21,15 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # ASP.NET Core Environment (defaults to Production)
-      - ASPNETCORE_ENVIRONMENT=Production
+      # ASP.NET Core Environment (defaults to Development for Docker Desktop)
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      # Override LocalPath for Docker environment (mocks folder is mounted at /app/mocks)
+      - MockRepository__LocalPath=/app
 
-    # Optional: Persist cloned Git repository across container restarts
-    # Uncomment if using Git mode (configured in appsettings.Production.json)
+    # Mount local mocks folder for Development environment
     volumes:
-      - mockery-data:/app/mocks
+      - ./mocks:/app/mocks:ro  # Read-only mount of local mocks folder
 
     # Health check configuration
     healthcheck:
@@ -26,7 +40,11 @@ services:
       start_period: 40s
 
     restart: unless-stopped
+    networks:
+      - aspire_network
+    depends_on:
+      - aspire-dashboard
 
-volumes:
-  mockery-data:
-    driver: local
+networks:
+  aspire_network:
+    driver: bridge

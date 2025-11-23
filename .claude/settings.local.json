@@ -11,7 +11,22 @@
       "Bash(docker rm:*)",
       "Bash(docker run:*)",
       "Bash(docker ps:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(dotnet run:*)",
+      "Bash(dotnet clean:*)",
+      "Bash(cat:*)",
+      "Bash(killall -9 Mockery.exe Mockery dotnet)",
+      "Bash(taskkill:*)",
+      "Bash(nul)",
+      "Bash(if [ -z \"$GITHUB_TOKEN\" ])",
+      "Bash(then echo \"GITHUB_TOKEN is not set\")",
+      "Bash(else echo \"GITHUB_TOKEN is set\")",
+      "Bash(fi)",
+      "Bash(printenv:*)",
+      "Bash(dotnet remove:*)",
+      "Bash(dotnet add package:*)"
     ],
     "deny": [],
     "ask": []
