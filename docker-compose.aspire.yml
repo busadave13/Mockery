@@ -1,0 +1,53 @@
+# Docker Compose file for deploying Aspire Dashboard with enhanced configuration
+# This provides a dedicated Aspire Dashboard setup that can work with external applications
+
+name: aspire-dashboard
+
+services:
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    container_name: aspire-dashboard-standalone
+    restart: unless-stopped
+    ports:
+      - "18888:18888"  # Dashboard UI (http://localhost:18888)
+      - "18889:18889"  # OpenTelemetry OTLP gRPC endpoint
+      - "18890:18890"  # OpenTelemetry OTLP HTTP endpoint (alternative)
+    environment:
+      # Dashboard configuration
+      - DOTNET_LOGS_CONSOLE_FORMAT=Json
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+      
+      # OTLP configuration
+      - ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL=http://+:18889
+      - ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL=http://+:18890
+      
+      # Optional: Frontend authentication (set to false for development)
+      - ASPIRE_DASHBOARD_FRONTEND_AUTH_MODE=Unsecured
+      
+      # Resource service configuration
+      - ASPIRE_DASHBOARD_RESOURCE_SERVICE_ENDPOINT_URL=http://+:18891
+    
+    # Health check for the dashboard
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:18888/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    # Volume for persistent dashboard data (optional)
+    volumes:
+      - aspire_dashboard_data:/app/data
+    
+    networks:
+      - aspire_network
+
+networks:
+  aspire_network:
+    driver: bridge
+    name: aspire_network
+
+volumes:
+  aspire_dashboard_data:
+    driver: local
