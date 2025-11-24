@@ -11,7 +11,10 @@
       "Bash(docker logs:*)",
       "Bash(docker-compose down:*)",
       "Bash(docker-compose up:*)",
-      "Bash(helm list:*)"
+      "Bash(helm list:*)",
+      "Bash(docker build:*)",
+      "Bash(helm upgrade:*)",
+      "Bash(kubectl rollout:*)"
     ],
     "deny": [],
     "ask": []

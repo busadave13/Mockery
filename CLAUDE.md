@@ -9,7 +9,7 @@ Mockery is a REST API service for serving HTTP mock responses. It provides a sin
 - **Development**: Quickly test locally with immediate mock file changes (no Git setup required)
 - **Production**: Manage mocks through standard Git workflows (commits, pull requests, version control)
 
-The service is built with ASP.NET Core 9.0+ and uses LibGit2Sharp for Git operations in production mode. OpenTelemetry observability is provided via the Shared.K8.Common package. No database or authentication required.
+The service is built with ASP.NET Core 9.0+ and uses LibGit2Sharp for Git operations in production mode. OpenTelemetry observability is built-in using native OpenTelemetry libraries. No database or authentication required.
 
 ## Build and Development Commands
 
@@ -358,30 +358,14 @@ Mockery uses ASP.NET Core's environment-based configuration system:
 
 **OpenTelemetry Integration:**
 
-Mockery includes built-in OpenTelemetry observability via the `Shared.K8.Common` NuGet package (v1.0.1):
+Mockery includes built-in OpenTelemetry observability using native OpenTelemetry libraries and standard OTEL environment variables:
 
 ```csharp
 // In Program.cs
-using Shared.K8.Common;
+using Mockery.Extensions;
 
-// Add OpenTelemetry observability with custom endpoint override
-var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
-if (!string.IsNullOrEmpty(otlpEndpoint))
-{
-    var customEndpoints = new List<OtlpEndpoints>
-    {
-        new OtlpEndpoints(
-            builder.Environment.EnvironmentName,
-            otlpEndpoint,
-            otlpEndpoint,
-            otlpEndpoint)
-    };
-    builder.AddObservability(endpointOverrides: customEndpoints);
-}
-else
-{
-    builder.AddObservability();
-}
+// Add OpenTelemetry observability (configured via environment variables)
+builder.AddObservability();
 
 // Add OpenTelemetry observability middleware
 app.UseObservability();
@@ -392,22 +376,43 @@ app.UseObservability();
 - **Traces**: Distributed tracing with automatic HTTP instrumentation
 - **Metrics**: Request counts, durations, and custom application metrics (exposed at `/metrics` endpoint)
 
+**Configuration (Standard OTEL Environment Variables):**
+
+Observability is configured using standard OpenTelemetry environment variables:
+
+| Environment Variable | Description | Example |
+|---------------------|-------------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | `http://aspire-dashboard:18889` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | Protocol (grpc or http/protobuf) | `grpc` (default) |
+| `OTEL_SERVICE_NAME` | Service name for telemetry | `mockery` |
+
 **Development Environment (Aspire Dashboard):**
 - When running with `docker-compose up`, telemetry is exported to Aspire Dashboard
-- Environment variable: `OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889`
+- Environment variables set in docker-compose.yml:
+  ```yaml
+  - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+  - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+  - OTEL_SERVICE_NAME=mockery
+  ```
 - Access dashboard at http://localhost:18888
 - Visualize logs, traces, and metrics in real-time
 
 **Production Environment (Kubernetes):**
 - Telemetry exported to Aspire via OTLP endpoint configured in Helm chart
-- Environment variable set in deployment: `OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire.monitor.svc.cluster.local:18889`
+- Environment variables set in deployment (via values.yaml):
+  ```yaml
+  - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire.aspire.svc.cluster.local:18889
+  - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+  - OTEL_SERVICE_NAME=mockery
+  ```
 - Metrics endpoint `/metrics` available for Prometheus scraping
-- Configuration customizable via `values.yaml` (`config.otlpEndpoint`)
 
-**Package Information:**
-- Package: `Shared.K8.Common` v1.0.1
-- Source: Public NuGet.org (no authentication required)
-- Provides environment-aware OTLP endpoint configuration with override support
+**Implementation Details:**
+- Implementation: `src/Mockery/Extensions/OpenTelemetryExtensions.cs`
+- Uses standard OpenTelemetry environment variables for configuration
+- Automatic fallback to console exporters if OTLP endpoint not configured
+- Includes ASP.NET Core and HTTP client instrumentation
+- Supports Prometheus metrics endpoint at `/metrics`
 
 ### Mock Retrieval Flow
 

@@ -9,7 +9,7 @@ services:
     environment:
       - DOTNET_LOGS_CONSOLE_FORMAT=Json
       - DOTNET_RUNNING_IN_CONTAINER=true
-      - DOTNET_ASPIRE_AUTHENTICATION_DISABLED=true
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
     networks:
       - aspire_network
 
@@ -26,6 +26,10 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       # Override LocalPath for Docker environment (mocks folder is mounted at /app/mocks)
       - MockRepository__LocalPath=/app
+      # OpenTelemetry configuration (standard OTEL environment variables)
+      - OTEL_SERVICE_NAME=Mockery
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 
     # Mount local mocks folder for Development environment
     volumes:

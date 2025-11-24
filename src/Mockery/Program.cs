@@ -1,10 +1,10 @@
 using Mockery.BusinessLogic;
 using Mockery.Configuration;
+using Mockery.Extensions;
 using Mockery.Middleware;
 using Mockery.Repository;
 using Mockery.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Shared.K8.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -103,27 +103,12 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add OpenTelemetry observability with custom endpoints
-// Check if OTEL_EXPORTER_OTLP_ENDPOINT is set, otherwise use default
-var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
-if (!string.IsNullOrEmpty(otlpEndpoint))
-{
-    // Use custom endpoint from environment variable
-    var customEndpoints = new List<OtlpEndpoints>
-    {
-        new OtlpEndpoints(
-            builder.Environment.EnvironmentName,
-            otlpEndpoint,
-            otlpEndpoint,
-            otlpEndpoint)
-    };
-    builder.AddObservability(endpointOverrides: customEndpoints);
-}
-else
-{
-    // Use default endpoints from Shared.K8.Common
-    builder.AddObservability();
-}
+// Add OpenTelemetry observability
+// Configuration via standard OTEL environment variables:
+// - OTEL_EXPORTER_OTLP_ENDPOINT: OTLP endpoint URL (e.g., http://aspire-dashboard:18889)
+// - OTEL_EXPORTER_OTLP_PROTOCOL: Protocol (grpc or http/protobuf, defaults to grpc)
+// - OTEL_SERVICE_NAME: Service name (defaults to application name)
+builder.AddObservability();
 
 var app = builder.Build();
 
