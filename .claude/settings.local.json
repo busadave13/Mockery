@@ -14,7 +14,8 @@
       "Bash(helm list:*)",
       "Bash(docker build:*)",
       "Bash(helm upgrade:*)",
-      "Bash(kubectl rollout:*)"
+      "Bash(kubectl rollout:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": [],
     "ask": []

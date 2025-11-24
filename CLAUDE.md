@@ -39,11 +39,8 @@ dotnet test
 # Navigate to src/Mockery directory
 cd src/Mockery
 
-# Run in Development mode (uses Local repository)
-dotnet run --urls "http://localhost:8080"
-
-# Or explicitly set environment
-dotnet run --urls "http://localhost:8080" --environment Development
+# Run in Development mode (uses Local repository, telemetry enabled by default)
+dotnet run
 
 # Application listens on http://localhost:8080
 # Mocks are loaded from mocks/ directory at project root
@@ -63,40 +60,13 @@ The repository includes sample mocks in `mocks/` that work immediately:
 - Changes to mock files are picked up immediately (no restart needed)
 - New mocks can be added by creating files in the `mocks/` directory
 
+**With Telemetry (Default):**
+To view telemetry data during development:
+1. Start Aspire Dashboard: `docker compose up -d`
+2. Run application: `dotnet run` (telemetry enabled by default)
+3. View dashboard at http://localhost:18888
+
 ### Docker Commands
-
-**Docker Desktop (Local Mocks with Aspire Dashboard)**
-
-When running locally with Docker Desktop, use `docker-compose` which is configured to use Development mode with local mocks and includes Aspire Dashboard for observability:
-
-```bash
-# 1. Run with docker-compose (uses local mocks from ./mocks folder)
-docker-compose up --build
-
-# 2. Access services:
-# - Mockery API: http://localhost:8080
-# - Aspire Dashboard: http://localhost:18888
-
-# 3. Test endpoints (port 8080)
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
-curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
-
-# 4. View telemetry in Aspire Dashboard
-# Open http://localhost:18888 in your browser to see:
-# - Structured logs from Mockery service
-# - Distributed traces of HTTP requests
-# - Metrics (request counts, durations, etc.)
-
-# 5. Stop containers
-docker-compose down
-```
-
-**How It Works (Docker Desktop):**
-- Uses `ASPNETCORE_ENVIRONMENT=Development`
-- Mounts local `./mocks` folder to `/app/mocks` (read-only)
-- Uses Local repository mode (no Git operations)
-- Changes to mock files are picked up immediately (no container restart needed)
-- Includes Aspire Dashboard service on port 18888 for telemetry visualization
 
 **Production Docker (Git Repository)**
 
@@ -118,16 +88,16 @@ For production deployments (Azure Container Apps, Kubernetes, etc.), configure G
 # }
 
 # 2. Build Docker image (uses Production environment by default)
-docker build -t dasacr.azurecr.io/mockery:latest .
+docker build -t mockery:latest .
 
 # 3. Run container with Production environment
-docker run -d --name mockery -p 3000:3000 \
-  -e ASPNETCORE_ENVIRONMENT=Production \
-  dasacr.azurecr.io/mockery:latest
+docker run -d --name mockery -p 8080:8080 \
+  -v mockery-data:/app/mocks \
+  mockery:latest
 
 # 4. Test endpoints
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
-curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
 
 # 5. Stop and remove container
 docker stop mockery && docker rm mockery
@@ -136,13 +106,13 @@ docker stop mockery && docker rm mockery
 ### Testing Mock Endpoints
 ```bash
 # Single mock ID (default 200 OK)
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 
 # Multiple mock IDs (random selection)
-curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/9012" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/9012" http://localhost:8080/api/mock
 
 # With custom status code
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
 ```
 
 ## Repository Modes
@@ -153,7 +123,6 @@ Mockery supports two repository modes, selected by environment:
 
 **Used by:**
 - Local development: `dotnet run` from `src/Mockery` directory
-- Docker Desktop: `docker-compose up` (uses Development environment)
 
 **Configuration:** Set in `appsettings.Development.json`:
 ```json
@@ -172,17 +141,11 @@ Mockery supports two repository modes, selected by environment:
 - Changes to mock files are immediately available
 - Ideal for local development and testing
 
-**Setup (dotnet run):**
+**Setup:**
 1. Create mock files in `mocks/{ServiceName}/{FileId}.{extension}` (at repository root)
 2. Navigate to `cd src/Mockery`
-3. Run `dotnet run --urls "http://localhost:8080"`
+3. Run `dotnet run` (listens on http://localhost:8080, telemetry enabled by default)
 4. Mock files can be edited while the service is running (no restart needed)
-
-**Setup (docker-compose):**
-1. Create mock files in `mocks/{ServiceName}/{FileId}.{extension}` (at repository root)
-2. Run `docker-compose up --build`
-3. Local `./mocks` folder is mounted to `/app/mocks` in container
-4. Mock files can be edited while container is running (no restart needed)
 
 ### Git Mode (Production Environment)
 
@@ -331,9 +294,9 @@ Mockery uses ASP.NET Core's environment-based configuration system:
 **Important Notes:**
 - Environment is controlled by `ASPNETCORE_ENVIRONMENT` variable
 - Local development defaults to `Development` environment
-- Docker Desktop uses `Development` environment (set in docker-compose.yml)
 - Production deployments should set `ASPNETCORE_ENVIRONMENT=Production`
 - Environment variables can override appsettings using `__` syntax (e.g., `MockRepository__LocalPath=/app`)
+- Launch profiles are configured in `src/Mockery/Properties/launchSettings.json`
 
 **Rate Limiting Configuration (appsettings.json):**
 ```json
@@ -387,12 +350,13 @@ Observability is configured using standard OpenTelemetry environment variables:
 | `OTEL_SERVICE_NAME` | Service name for telemetry | `mockery` |
 
 **Development Environment (Aspire Dashboard):**
-- When running with `docker-compose up`, telemetry is exported to Aspire Dashboard
-- Environment variables set in docker-compose.yml:
+- Start Aspire Dashboard: `docker compose up -d`
+- Run with telemetry: `dotnet run` (telemetry enabled by default)
+- Environment variables set in launch profile (launchSettings.json):
   ```yaml
-  - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+  - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:18889
   - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-  - OTEL_SERVICE_NAME=mockery
+  - OTEL_SERVICE_NAME=Mockery
   ```
 - Access dashboard at http://localhost:18888
 - Visualize logs, traces, and metrics in real-time
@@ -401,9 +365,9 @@ Observability is configured using standard OpenTelemetry environment variables:
 - Telemetry exported to Aspire via OTLP endpoint configured in Helm chart
 - Environment variables set in deployment (via values.yaml):
   ```yaml
-  - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire.aspire.svc.cluster.local:18889
+  - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire.monitor.svc.cluster.local:18889
   - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-  - OTEL_SERVICE_NAME=mockery
+  - OTEL_SERVICE_NAME=Mockery
   ```
 - Metrics endpoint `/metrics` available for Prometheus scraping
 
@@ -515,14 +479,14 @@ helm install mockery oci://ghcr.io/busadave13/helm/mockery --version 1.0.0
 
 For local development (default when running `dotnet run`):
 
-1. Navigate to project root: `cd C:\Users\daveh\source\Mockery`
-2. Create service folder if needed: `mkdir -p .mocks/MyService`
-3. Create mock file: `echo '{"status":"success"}' > .mocks/MyService/1234.json`
-4. Optionally create headers file: `echo '{"X-Custom-Header":"value"}' > .mocks/MyService/1234.headers.json`
+1. Navigate to project root (repository root, not src/Mockery)
+2. Create service folder if needed: `mkdir -p mocks/MyService`
+3. Create mock file: `echo '{"status":"success"}' > mocks/MyService/1234.json`
+4. Optionally create headers file: `echo '{"X-Custom-Header":"value"}' > mocks/MyService/1234.headers.json`
 5. Test immediately - no restart needed!
 
 ```bash
-curl -i -H "X-Mock-ID: MyService/1234" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: MyService/1234" http://localhost:8080/api/mock
 ```
 
 ### Adding a New Mock (Production/Git Mode)

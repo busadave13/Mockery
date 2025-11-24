@@ -8,17 +8,7 @@
     }
   },
   "profiles": {
-    "http": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": true,
-      "launchUrl": "swagger",
-      "applicationUrl": "http://localhost:8080",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    },
-    "Mockery (with Telemetry)": {
+    "Mockery": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
@@ -29,14 +19,6 @@
         "OTEL_SERVICE_NAME": "Mockery",
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:18889",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"
-      }
-    },
-    "IIS Express": {
-      "commandName": "IISExpress",
-      "launchBrowser": true,
-      "launchUrl": "swagger",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
       }
     }
   }

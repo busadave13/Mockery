@@ -68,44 +68,27 @@ curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
 - Development mode is automatic when running locally
 - Mock files are located at repository root: `mocks/{ServiceName}/{FileId}.{extension}`
 
-### Running with Docker Compose (Development Mode with Observability)
+### Running with Docker (Production Mode)
 
-**Docker Desktop uses Development mode with local mocks and includes Aspire Dashboard for observability.**
+**For production deployments, build and run the Docker image:**
 
 ```bash
-# 1. Build and run with docker-compose (includes Aspire Dashboard)
-docker-compose up --build
+# 1. Build Docker image
+docker build -t mockery:latest .
 
-# 2. Access services:
-# - Mockery API: http://localhost:8080
-# - Aspire Dashboard: http://localhost:18888
+# 2. Run the container (uses Git configuration from appsettings.Production.json)
+docker run -d --name mockery -p 8080:8080 \
+  -v mockery-data:/app/mocks \
+  mockery:latest
 
-# 3. Test the endpoints (using local mocks from ./mocks folder)
+# 3. Test the endpoints
 curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
-curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
 
-# 4. View telemetry in Aspire Dashboard
-# Open http://localhost:18888 in your browser to see:
-# - Structured logs from Mockery service
-# - Distributed traces of HTTP requests
-# - Metrics (request counts, durations, etc.)
-
-# 5. Check container logs
-docker-compose logs -f mockery
-
-# 6. Stop and remove
-docker-compose down
+# 4. Stop and remove
+docker stop mockery && docker rm mockery
 ```
 
-**Services Included:**
-- **mockery**: Main application service (port 8080)
-- **aspire-dashboard**: Observability dashboard (port 18888)
-
-**Features:**
-- Uses Development environment (local mocks from `./mocks` folder)
-- Local mocks are mounted read-only into the container
-- Changes to local mock files are picked up immediately (no restart needed)
-- OpenTelemetry exports logs, metrics, and traces to Aspire Dashboard
+**Note:** The Docker image uses Git mode by default, configured in [appsettings.Production.json](src/Mockery/appsettings.Production.json)
 
 ### Using Pre-built Docker Images
 
@@ -329,7 +312,7 @@ dotnet test --verbosity normal
 
 ```
 Mockery/
-├── mocks/                                 # Sample mocks (development)
+├── mocks/                                       # Sample mocks (development)
 │   ├── FooBar/
 │   │   ├── 1234.json
 │   │   ├── 1234.headers.json
@@ -337,25 +320,29 @@ Mockery/
 │   └── Products/
 │       ├── hydrate.json
 │       └── error.json
-├── docker-compose.yml                     # Docker Compose with Aspire Dashboard
-├── Dockerfile                            # Production Docker image
-├── NuGet.config                          # NuGet configuration (public sources only)
+├── docker-compose.yml                           # Aspire Dashboard for local development
+├── Dockerfile                                  # Production Docker image
+├── NuGet.config                                # NuGet configuration (public sources only)
 └── src/
-    ├── Mockery/                           # Main application
-    │   ├── Controllers/                   # API controllers
-    │   ├── BusinessLogic/                # Service layer
-    │   ├── Repository/                   # Mock repository implementations
+    ├── Mockery/                                 # Main application
+    │   ├── Controllers/                         # API controllers
+    │   ├── BusinessLogic/                      # Service layer
+    │   ├── Repository/                         # Mock repository implementations
     │   │   ├── FileSystemMockRepositoryBase.cs  # Shared file access logic
-    │   │   ├── GitMockRepository.cs      # Git-based implementation
-    │   │   └── LocalFileMockRepository.cs # Local file system implementation
-    │   ├── Services/                     # Supporting services
-    │   ├── Middleware/                   # Rate limiting middleware
-    │   ├── Models/                       # Domain models
-    │   ├── Configuration/                # Configuration classes
-    │   ├── appsettings.json              # Base configuration
-    │   ├── appsettings.Development.json  # Local development config
-    │   └── appsettings.Production.json   # Docker/production config
-    └── Mockery.Test/                     # Unit tests (44 tests)
+    │   │   ├── GitMockRepository.cs            # Git-based implementation
+    │   │   └── LocalFileMockRepository.cs       # Local file system implementation
+    │   ├── Services/                           # Supporting services
+    │   ├── Middleware/                         # Rate limiting middleware
+    │   ├── Models/                             # Domain models
+    │   ├── Configuration/                      # Configuration classes
+    │   ├── Extensions/                         # Extension methods
+    │   │   └── OpenTelemetryExtensions.cs      # OpenTelemetry configuration
+    │   ├── Properties/
+    │   │   └── launchSettings.json             # Launch profiles for IDE
+    │   ├── appsettings.json                    # Base configuration
+    │   ├── appsettings.Development.json        # Local development config
+    │   └── appsettings.Production.json         # Docker/production config
+    └── Mockery.Test/                           # Unit tests (44 tests)
         ├── Controllers/
         ├── Repository/
         ├── Services/
@@ -370,90 +357,194 @@ Mockery/
   - **Git Mode**: Checks if Git repository is accessible
 - `GET /health/startup`: Startup probe (repository initialization complete)
 
-## Observability
+## Observability & Telemetry
 
-Mockery includes built-in OpenTelemetry integration for comprehensive observability.
+Mockery includes comprehensive OpenTelemetry integration for observability, providing distributed tracing, metrics, and structured logging.
 
-### OpenTelemetry Features
+### Features
 
-- **Logs**: Structured logging with OpenTelemetry exporters
-- **Traces**: Distributed tracing with automatic HTTP instrumentation
-- **Metrics**: Request counts, durations, and custom application metrics (exposed at `/metrics` endpoint)
-- **Package**: Uses `Shared.K8.Common` v1.0.1 NuGet package from public NuGet.org
+- **Distributed Tracing**: Track requests across components
+- **Metrics**: Application performance and health metrics  
+- **Logging**: Structured logs with correlation IDs
+- **Aspire Dashboard Integration**: Development environment includes dashboard for telemetry visualization
+- **Prometheus Support**: Metrics endpoint for Prometheus scraping
 
-### Development Environment (Aspire Dashboard)
+### Development Setup
 
-When running with Docker Compose, telemetry is exported to Aspire Dashboard:
+#### Method 1: Using Launch Profiles (Recommended)
 
+The project includes launch profiles in [launchSettings.json](src/Mockery/Properties/launchSettings.json) that work with any IDE:
+
+**VS Code:**
+1. Start the Aspire Dashboard:
+   ```bash
+   docker compose up -d
+   ```
+
+2. In VS Code, press `F5` or go to **Run and Debug** → **Mockery**
+
+**Command Line:**
 ```bash
-# Start services (includes Aspire Dashboard)
-docker-compose up --build
+# Start Aspire Dashboard
+docker compose up -d
 
-# Access Aspire Dashboard
-open http://localhost:18888
-
-# View metrics endpoint
-curl http://localhost:8080/metrics
+# Run with telemetry (now the default profile)
+cd src/Mockery
+dotnet run
 ```
 
+**Other IDEs:**
+The `launchSettings.json` file is a standard .NET project file that works with:
+- Visual Studio
+- JetBrains Rider
+- Any IDE that supports .NET launch profiles
+
+**Profile:**
+- **`"Mockery"`**: Full OpenTelemetry configuration enabled by default
+
+#### Method 2: Manual Environment Variables
+
+For advanced scenarios or CI/CD pipelines, first start the Aspire Dashboard:
+
+```bash
+# Start Aspire Dashboard
+docker compose up -d
+
+# Windows (PowerShell)
+$env:OTEL_SERVICE_NAME = "Mockery"
+$env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:18889"
+$env:OTEL_EXPORTER_OTLP_PROTOCOL = "grpc"
+cd src/Mockery
+dotnet run
+
+# Linux/macOS/WSL (Bash)
+export OTEL_SERVICE_NAME="Mockery"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:18889"
+export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
+cd src/Mockery
+dotnet run
+```
+
+### Aspire Dashboard
+
+Once both the dashboard and application are running:
+
+1. **Aspire Dashboard**: http://localhost:18888
+2. **Application**: http://localhost:8080
+3. **Application Health**: http://localhost:8080/health/live
+
 **Dashboard Features:**
-- **Structured Logs**: View all application logs with filtering and search
-- **Traces**: Visualize distributed traces across HTTP requests
-- **Metrics**: Monitor request rates, latencies, and custom metrics
-- **Resources**: See service information and health status
 
-**Configuration:**
-- Environment variable: `OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889`
-- Set automatically in `docker-compose.yml`
+📊 **Metrics**
+- HTTP request rates and latencies
+- System resource usage
+- Custom application metrics
+- Prometheus-compatible metrics endpoint
 
-### Production Environment (Kubernetes)
+🔍 **Traces**
+- End-to-end request tracing
+- Service dependency mapping
+- Performance bottleneck identification
+- Error correlation
 
-In production, telemetry is exported via OTLP to your observability backend:
+📝 **Logs** 
+- Structured application logs
+- Log correlation with traces
+- Filtering and search capabilities
+- Real-time log streaming
 
-**Default Configuration:**
-- OTLP endpoint: `http://aspire.monitor.svc.cluster.local:18889`
-- Configurable via Helm chart `values.yaml` (`config.otlpEndpoint`)
-- Metrics endpoint `/metrics` available for Prometheus scraping
+### Production Configuration
 
-**Customizing OTLP Endpoint:**
-
+**Kubernetes/Helm:**
 ```yaml
 # Example Helm values.yaml
 config:
   otlpEndpoint: "http://your-otel-collector:4317"
 ```
 
-### Configuration
-
-OpenTelemetry is configured in `Program.cs` with environment variable support:
-
-```csharp
-// Add OpenTelemetry observability with custom endpoint override
-var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
-if (!string.IsNullOrEmpty(otlpEndpoint))
-{
-    var customEndpoints = new List<OtlpEndpoints>
-    {
-        new OtlpEndpoints(
-            builder.Environment.EnvironmentName,
-            otlpEndpoint,
-            otlpEndpoint,
-            otlpEndpoint)
-    };
-    builder.AddObservability(endpointOverrides: customEndpoints);
-}
-else
-{
-    builder.AddObservability();
-}
-
-// Add OpenTelemetry observability middleware
-app.UseObservability();
-```
-
 **Environment Variables:**
-- `OTEL_EXPORTER_OTLP_ENDPOINT`: Custom OTLP endpoint URL (optional)
-- If not set, uses package defaults based on environment
+
+| Variable | Description | Local Development | Kubernetes |
+|----------|-------------|-------------------|------------|
+| `OTEL_SERVICE_NAME` | Service identifier in traces | `Mockery` | `Mockery` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Telemetry endpoint URL | `http://localhost:18889` | `http://aspire.monitor.svc.cluster.local:18889` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | Export protocol | `grpc` | `grpc` |
+
+### Configuration Architecture
+
+**Single Source of Truth:**
+OpenTelemetry configuration is handled exclusively through **environment variables**:
+- **Launch Profiles**: Set environment variables for local development
+- **Docker Compose**: Set environment variables for containerized deployment  
+- **Manual**: Set environment variables directly
+
+**No Configuration Files:**
+The application **does not** read telemetry settings from `appsettings.json` files. This ensures:
+- ✅ **Consistency**: Same configuration method across all environments
+- ✅ **Standard Compliance**: Uses OpenTelemetry standard environment variables
+- ✅ **Simplicity**: Single configuration approach
+
+### Team Development Workflow
+
+**For New Developers:**
+1. Clone repository
+2. Start Aspire Dashboard: `docker compose up -d`
+3. Run with telemetry: `cd src/Mockery && dotnet run`
+4. View telemetry at http://localhost:18888
+
+**No additional setup required!** All configuration is included in the repository.
+
+**Development Mode:**
+- Telemetry is enabled by default in the single "Mockery" launch profile
+- To run without telemetry, unset the OTEL environment variables or don't start the Aspire Dashboard
+
+### Troubleshooting
+
+**No Telemetry Data in Dashboard:**
+
+1. Check if dashboard is running:
+   ```bash
+   curl -I http://localhost:18888
+   ```
+
+2. Verify environment variables are set:
+   ```bash
+   # PowerShell
+   Get-ChildItem Env:OTEL_*
+   
+   # Bash
+   env | grep OTEL_
+   ```
+
+3. Verify telemetry is enabled (default profile includes it):
+   ```bash
+   # Telemetry is enabled by default with dotnet run
+   dotnet run
+   ```
+
+**Dashboard Shows "Unhealthy":**
+This is often due to browser storage issues and doesn't affect functionality. You can:
+- Clear browser cache and cookies for localhost:18888
+- Use an incognito/private browsing window
+- Restart the dashboard container
+
+**Connection Refused Errors:**
+
+1. Ensure dashboard is running:
+   ```bash
+   docker ps | grep aspire-dashboard
+   ```
+
+2. Check port availability:
+   ```bash
+   netstat -an | findstr 18889  # Windows
+   netstat -an | grep 18889     # Linux/macOS
+   ```
+
+3. Restart the dashboard:
+   ```bash
+   docker compose restart
+   ```
 
 ## CI/CD Pipeline
 
@@ -511,7 +602,12 @@ Repository  MockRepository
 ### Core Dependencies
 - **.NET 9.0**: Latest .NET framework
 - **LibGit2Sharp**: Git operations for production mode
-- **Shared.K8.Common v1.0.1**: OpenTelemetry observability with endpoint override support (public NuGet package)
+- **OpenTelemetry**: Native OpenTelemetry packages for observability
+  - OpenTelemetry.Exporter.OpenTelemetryProtocol
+  - OpenTelemetry.Exporter.Prometheus.AspNetCore
+  - OpenTelemetry.Extensions.Hosting
+  - OpenTelemetry.Instrumentation.AspNetCore
+  - OpenTelemetry.Instrumentation.Http
 
 ### Development Dependencies
 - **xUnit**: Unit testing framework
