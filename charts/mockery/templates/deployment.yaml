@@ -38,6 +38,14 @@ spec:
               value: {{ .Values.config.openTelemetry.otlpProtocol | quote }}
             - name: OTEL_EXPORTER_OTLP_HEADERS
               value: {{ printf "x-otlp-api-key=%s" .Values.config.openTelemetry.otlpApiKey | quote }}
+            {{ if .Values.secrets.gitAccessToken -}}
+            - name: MockRepository__Git__AccessToken
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.name }}-secrets
+                  key: git-access-token
+                  optional: false
+            {{ end -}}
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

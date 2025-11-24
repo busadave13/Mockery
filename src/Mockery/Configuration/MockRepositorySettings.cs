@@ -15,4 +15,11 @@ public class GitSettings
     public string Branch { get; set; } = "main";
     public string ClonePath { get; set; } = "/app/mocks";
     public string AccessToken { get; set; } = string.Empty;
+    public AutoRefreshSettings AutoRefresh { get; set; } = new AutoRefreshSettings();
+}
+
+public class AutoRefreshSettings
+{
+    public bool Enabled { get; set; } = true;
+    public int IntervalMinutes { get; set; } = 5;
 }
