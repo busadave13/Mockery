@@ -53,6 +53,11 @@ if (mockRepoSettings.Type.Equals("Local", StringComparison.OrdinalIgnoreCase))
 else
 {
     builder.Services.AddSingleton<IGitMockRepository, GitMockRepository>();
+
+    // Add background service for periodic Git repository refresh (only in Git mode)
+    builder.Services.Configure<MockRepositorySettings>(
+        builder.Configuration.GetSection("MockRepository"));
+    builder.Services.AddHostedService<GitRepositoryRefreshService>();
 }
 builder.Services.AddScoped<IMockService, MockService>();
 builder.Services.AddSingleton<IContentTypeResolver, ContentTypeResolver>();

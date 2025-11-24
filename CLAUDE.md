@@ -163,22 +163,146 @@ Mockery supports two repository modes, selected by environment:
       "RepositoryUrl": "https://github.com/your-org/mockery-mocks.git",
       "Branch": "main",
       "ClonePath": "/app/mocks",
-      "AccessToken": "your-token-if-private-repo"
+      "AccessToken": "",
+      "AutoRefresh": {
+        "Enabled": true,
+        "IntervalMinutes": 5
+      }
     }
   }
 }
 ```
 
+**IMPORTANT - Secure Token Configuration:**
+
+**Never store access tokens in appsettings files!** The `AccessToken` field should remain empty in configuration files.
+
+For **public repositories**: Leave `AccessToken` empty (no authentication needed).
+
+For **private repositories**: Set the access token via environment variable:
+```bash
+MockRepository__Git__AccessToken="ghp_your_github_token_here"
+```
+
+ASP.NET Core's configuration system automatically merges environment variables with appsettings, with environment variables taking precedence. Use the double-underscore (`__`) convention to override nested configuration values.
+
 **Characteristics:**
 - Uses `GitMockRepository` implementation
 - Clones Git repository on startup
 - Pulls latest changes when repository already exists
+- **Auto-refresh**: Periodically pulls latest changes from Git (configurable interval, default: 5 minutes)
 - Mocks managed through Git workflows (commits, PRs, version control)
 - Ideal for production, staging, and shared environments
 - Configuration is done through appsettings files
 
+**Auto-Refresh Feature:**
+- Background service automatically pulls latest changes from Git repository
+- Default interval: 5 minutes (configurable via `AutoRefresh.IntervalMinutes`)
+- Can be disabled by setting `AutoRefresh.Enabled` to `false`
+- Only runs in Git mode (not in Local mode)
+- Graceful error handling - continues running even if a refresh fails
+- New mocks become available without restarting the service
+
+### Secure Git Access Token Configuration
+
+**Environment Variable:** `MockRepository__Git__AccessToken`
+
+This section explains how to securely configure Git access tokens for private repositories in different deployment environments.
+
+#### Local Development (Private Repos)
+
+For testing with private repositories locally:
+
+**PowerShell (Windows):**
+```powershell
+$env:MockRepository__Git__AccessToken="ghp_your_token_here"
+cd src/Mockery
+dotnet run
+```
+
+**Bash (Linux/Mac):**
+```bash
+export MockRepository__Git__AccessToken="ghp_your_token_here"
+cd src/Mockery
+dotnet run
+```
+
+#### Docker Deployment
+
+**Pass as environment variable:**
+```bash
+docker run -d \
+  -e MockRepository__Git__AccessToken="ghp_your_token_here" \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  -p 8080:8080 \
+  mockery:latest
+```
+
+**Using Docker Compose:**
+```yaml
+services:
+  mockery:
+    image: mockery:latest
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - MockRepository__Git__AccessToken=${GIT_ACCESS_TOKEN}
+    ports:
+      - "8080:8080"
+```
+
+Then run with:
+```bash
+GIT_ACCESS_TOKEN="ghp_your_token_here" docker-compose up
+```
+
+#### Kubernetes/Helm Deployment
+
+**Step 1: Create Kubernetes Secret**
+```bash
+kubectl create secret generic mockery-git-token \
+  --from-literal=access-token="ghp_your_token_here" \
+  --namespace=your-namespace
+```
+
+**Step 2: Install Helm chart with secret reference**
+```bash
+helm install mockery oci://ghcr.io/busadave13/helm/mockery \
+  --set secrets.gitAccessToken="ghp_your_token_here" \
+  --namespace=your-namespace
+```
+
+The Helm chart automatically creates the Kubernetes Secret and configures the deployment to use it.
+
+**For production**, use external secret management:
+- **Azure**: Azure Key Vault with CSI driver
+- **AWS**: AWS Secrets Manager with External Secrets Operator
+- **GCP**: Google Secret Manager
+- **HashiCorp Vault**: Vault Agent Injector
+
+#### GitHub Personal Access Token (PAT)
+
+To create a GitHub Personal Access Token:
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Click "Generate new token (classic)"
+3. Give it a descriptive name (e.g., "Mockery Production")
+4. Select scopes:
+   - For **public repositories**: No scopes needed
+   - For **private repositories**: Select `repo` scope (Full control of private repositories)
+5. Click "Generate token"
+6. Copy the token immediately (starts with `ghp_`)
+
+**Token Security Best Practices:**
+- Never commit tokens to source control
+- Use different tokens for different environments
+- Rotate tokens regularly
+- Use fine-grained personal access tokens when possible
+- Set token expiration dates
+- Use minimum required scopes
+
 **Environment Variable Overrides:**
 - Docker Desktop uses `MockRepository__LocalPath=/app` environment variable to override the path for containerized environments
+- All configuration values can be overridden using environment variables with the `__` (double underscore) convention
 
 ## Architecture
 

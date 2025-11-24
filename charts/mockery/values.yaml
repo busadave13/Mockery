@@ -37,6 +37,15 @@ config:
     # OTLP API key for Aspire dashboard authentication
     otlpApiKey: "aspire"
 
+# Secrets configuration for Git repository access
+secrets:
+  # Git access token for private repositories (optional - leave empty for public repositories)
+  # For private repositories, provide a GitHub Personal Access Token (starts with 'ghp_')
+  # The token should have 'repo' scope for private repository access
+  # This value will be stored in a Kubernetes Secret and injected as an environment variable
+  # IMPORTANT: Never commit actual tokens to version control!
+  gitAccessToken: ""
+
 # Persistence for Git repository storage
 persistence:
   # Enable persistence (required for Git mode)
