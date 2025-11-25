@@ -39,34 +39,9 @@ public class MockController : ControllerBase
             return BadRequest(new { error = "X-Mock-ID header contains no valid mock IDs" });
         }
 
-        // Extract optional X-Mock-StatusCode header
-        int? statusCode = null;
-        if (Request.Headers.TryGetValue("X-Mock-StatusCode", out var statusCodeHeader) && !string.IsNullOrWhiteSpace(statusCodeHeader))
-        {
-            if (int.TryParse(statusCodeHeader, out var parsedStatusCode))
-            {
-                // Validate status code is in valid HTTP range
-                if (parsedStatusCode >= 100 && parsedStatusCode <= 599)
-                {
-                    statusCode = parsedStatusCode;
-                    _logger.LogInformation("Using custom status code: {StatusCode}", statusCode);
-                }
-                else
-                {
-                    _logger.LogWarning("Invalid status code: {StatusCode}. Must be between 100 and 599", parsedStatusCode);
-                    return BadRequest(new { error = $"Invalid status code: {parsedStatusCode}. Must be between 100 and 599" });
-                }
-            }
-            else
-            {
-                _logger.LogWarning("X-Mock-StatusCode header is not a valid integer: {Value}", statusCodeHeader.ToString());
-                return BadRequest(new { error = "X-Mock-StatusCode must be a valid integer" });
-            }
-        }
-
         try
         {
-            var result = await _mockService.GetMockAsync(mockIds, statusCode);
+            var result = await _mockService.GetMockAsync(mockIds);
 
             if (result == null)
             {
@@ -85,8 +60,8 @@ public class MockController : ControllerBase
                 Response.Headers[header.Key] = header.Value;
             }
 
-            // Set status code (priority: X-Mock-StatusCode header > .status.json file > default 200)
-            var responseStatusCode = statusCode ?? result.StatusCode ?? 200;
+            // Set status code from .status.json file or default to 200
+            var responseStatusCode = result.StatusCode ?? 200;
             Response.StatusCode = responseStatusCode;
 
             // Return content based on status code behavior

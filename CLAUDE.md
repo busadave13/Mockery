@@ -111,8 +111,8 @@ curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 # Multiple mock IDs (random selection)
 curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/9012" http://localhost:8080/api/mock
 
-# With custom status code
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
+# Status file for error response (HTTP 504)
+curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
 ```
 
 ## Repository Modes
@@ -341,7 +341,7 @@ mocks/
 **Controllers** (`src/Mockery/Controllers/`):
 - `MockController`: Single GET endpoint `/api/mock` for retrieving mock content by mock ID
   - Parses `X-Mock-ID` header (single or comma-separated)
-  - Parses optional `X-Mock-StatusCode` header
+  - Returns status code from `.status.json` files when present
   - Delegates business logic to `IMockService`
 
 **Business Logic** (`src/Mockery/BusinessLogic/`):
@@ -507,12 +507,12 @@ Observability is configured using standard OpenTelemetry environment variables:
 1. Client sends GET request to `/api/mock` with headers:
    ```http
    X-Mock-ID: FooBar/1234
-   X-Mock-StatusCode: 500  (optional)
    ```
    Or multiple IDs for random selection:
    ```http
    X-Mock-ID: FooBar/1234,FooBar/5678,Products/9012
    ```
+   For status code control, use `.status.json` files (e.g., `504.status.json`)
 
 2. Controller parses headers and validates format
 

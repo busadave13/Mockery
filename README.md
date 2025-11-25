@@ -13,7 +13,7 @@ REST API service for serving HTTP mock responses with support for both local fil
 - **Single GET Endpoint**: Simple API with header-based mock selection
 - **Random Selection**: Support for multiple mock IDs with random selection
 - **Custom Headers**: Optional headers files for custom HTTP response headers
-- **Status Code Control**: Dynamic status code behavior via request headers
+- **Status Code Control**: Dynamic status code behavior via `.status.json` files
 - **Rate Limiting**: Dual-strategy rate limiting (per-IP and global)
 - **OpenTelemetry Observability**: Built-in logs, metrics, and traces
 - **Aspire Dashboard Integration**: Development environment includes Aspire Dashboard for telemetry visualization
@@ -177,8 +177,8 @@ curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 # Multiple mock IDs (random selection)
 curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678" http://localhost:8080/api/mock
 
-# With custom status code
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
+# With status file for error response
+curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
 
 # When running in kubernetes with custom host header
 curl -i -H "X-Mock-ID: test/test" -H "Host: mockery.local.com" http://mockery.local.com/api/mock
@@ -346,19 +346,8 @@ curl -i -H "X-Mock-ID: FooBar/204" http://localhost:8080/api/mock
 
 When determining the HTTP status code for a response, Mockery uses the following priority (highest to lowest):
 
-1. **`X-Mock-StatusCode` header** - Explicit override in the request
-2. **`.status.json` file** - Status code from the filename
-3. **Default 200 OK** - When no status is specified
-
-**Example: Header Override**
-```bash
-# Even though 504.status.json exists, the header overrides to 418
-curl -i -H "X-Mock-ID: FooBar/504" -H "X-Mock-StatusCode: 418" http://localhost:8080/api/mock
-
-# Returns:
-# HTTP/1.1 418 I'm a teapot
-# {"error": "Gateway Timeout", "message": "The upstream server did not respond in time"}
-```
+1. **`.status.json` file** - Status code from the filename
+2. **Default 200 OK** - When no status is specified
 
 ### File Resolution Order
 
@@ -367,7 +356,7 @@ When you request `X-Mock-ID: FooBar/504`, Mockery checks for files in this order
 1. **Status file first:** `mocks/FooBar/504.status.json`
    - If found: Returns content with HTTP status from filename (504)
 2. **Content file second:** `mocks/FooBar/504.json`, `504.html`, etc.
-   - If found: Returns content with HTTP 200 (or header override)
+   - If found: Returns content with HTTP 200
 3. **Not found:** Returns HTTP 404
 
 ### Complete Example: Error Scenario Mocking

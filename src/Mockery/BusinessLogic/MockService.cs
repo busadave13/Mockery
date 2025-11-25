@@ -20,7 +20,7 @@ public class MockService : IMockService
         _logger = logger;
     }
 
-    public async Task<MockFileResult?> GetMockAsync(IEnumerable<string> mockIds, int? statusCode = null)
+    public async Task<MockFileResult?> GetMockAsync(IEnumerable<string> mockIds)
     {
         var mockIdList = mockIds.ToList();
         if (!mockIdList.Any())
@@ -63,11 +63,7 @@ public class MockService : IMockService
         {
             // Status file found - use status code from filename
             result.StatusCode = statusFile.Value.StatusCode;
-            
-            // Determine content behavior based on effective status code
-            // X-Mock-StatusCode header overrides status file's status code if provided
-            var effectiveStatusCode = statusCode ?? statusFile.Value.StatusCode;
-            result.ShouldReturnContent = ShouldReturnContent(effectiveStatusCode);
+            result.ShouldReturnContent = ShouldReturnContent(statusFile.Value.StatusCode);
 
             if (result.ShouldReturnContent && !string.IsNullOrEmpty(statusFile.Value.Content))
             {
@@ -82,47 +78,31 @@ public class MockService : IMockService
         }
 
         // No status file found - fall back to regular mock file lookup
-        // Determine if we should return content based on status code semantics
-        var shouldReturnContent = ShouldReturnContent(statusCode);
-        result.ShouldReturnContent = shouldReturnContent;
+        result.ShouldReturnContent = true;
 
-        // Only retrieve mock file content if status code semantics allow it
-        if (shouldReturnContent)
+        var mockFile = await _repository.FindMockFileAsync(serviceName, fileId);
+        if (mockFile == null)
         {
-            var mockFile = await _repository.FindMockFileAsync(serviceName, fileId);
-            if (mockFile == null)
-            {
-                _logger.LogWarning("Mock file not found: {ServiceName}/{FileId}", serviceName, fileId);
-                return null;
-            }
-
-            result.Content = mockFile.Value.Content;
-            result.ContentType = _contentTypeResolver.GetContentType(mockFile.Value.Extension);
-
-            _logger.LogInformation("Retrieved mock file: {ServiceName}/{FileId}, ContentType: {ContentType}",
-                serviceName, fileId, result.ContentType);
+            _logger.LogWarning("Mock file not found: {ServiceName}/{FileId}", serviceName, fileId);
+            return null;
         }
-        else
-        {
-            _logger.LogInformation("Status code {StatusCode} - skipping content retrieval", statusCode);
-        }
+
+        result.Content = mockFile.Value.Content;
+        result.ContentType = _contentTypeResolver.GetContentType(mockFile.Value.Extension);
+
+        _logger.LogInformation("Retrieved mock file: {ServiceName}/{FileId}, ContentType: {ContentType}",
+            serviceName, fileId, result.ContentType);
 
         return result;
     }
 
-    private bool ShouldReturnContent(int? statusCode)
+    private static bool ShouldReturnContent(int statusCode)
     {
-        if (!statusCode.HasValue)
-        {
-            return true; // Default: return content
-        }
-
-        // Status code semantics
-        return statusCode.Value switch
+        // Status code semantics - some status codes should not return content
+        return statusCode switch
         {
             204 => false, // No Content - by definition
-            404 => false, // Not Found - semantically means "not found" = no content
-            _ => true     // All other status codes return content
+            _ => true     // All other status codes can return content
         };
     }
 }

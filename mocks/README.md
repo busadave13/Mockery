@@ -98,9 +98,8 @@ curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
 
 ### Status Code Priority
 
-1. **`X-Mock-StatusCode` header** - Explicit override in the request (highest priority)
-2. **`.status.json` file** - Status code from the filename
-3. **Default 200 OK** - When no status is specified
+1. **`.status.json` file** - Status code from the filename
+2. **Default 200 OK** - When no status is specified
 
 ### File Resolution Order
 
@@ -143,8 +142,8 @@ To test these mocks locally:
 # Single mock ID (default 200 OK)
 curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 
-# With custom status code
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
+# Status file for error response (HTTP 504)
+curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
 
 # Random selection from multiple IDs
 curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/hydrate" http://localhost:8080/api/mock
@@ -282,20 +281,16 @@ Response includes custom headers:
 - `X-Request-ID: abc-123-def`
 - `Cache-Control: max-age=3600`
 
-**User Not Found (404):**
+**User Not Found (404) - using status file:**
 ```bash
-curl -i -H "X-Mock-ID: UserService/user-not-found" \
-     -H "X-Mock-StatusCode: 404" \
-     http://localhost:8080/api/mock
+# Create 404.status.json in UserService folder
+curl -i -H "X-Mock-ID: UserService/404" http://localhost:8080/api/mock
 ```
 
-Response: Empty body (404 semantics), but custom headers are still returned.
-
-**Server Error (500):**
+**Server Error (500) - using status file:**
 ```bash
-curl -i -H "X-Mock-ID: ProductService/error-response" \
-     -H "X-Mock-StatusCode: 500" \
-     http://localhost:8080/api/mock
+# Create 500.status.json in ProductService folder
+curl -i -H "X-Mock-ID: ProductService/500" http://localhost:8080/api/mock
 ```
 
 **Random Selection:**

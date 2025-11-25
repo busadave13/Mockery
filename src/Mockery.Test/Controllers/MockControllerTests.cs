@@ -32,7 +32,7 @@ public class MockControllerTests
     {
         // Arrange
         _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234";
-        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>(), null))
+        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
                 Content = "{\"test\":\"data\"}",
@@ -65,7 +65,7 @@ public class MockControllerTests
     {
         // Arrange
         _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234,FooBar/5678,Products/9012";
-        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>(), null))
+        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
                 Content = "{\"test\":\"data\"}",
@@ -78,65 +78,7 @@ public class MockControllerTests
 
         // Assert
         _mockService.Verify(x => x.GetMockAsync(
-            It.Is<IEnumerable<string>>(ids => ids.Count() == 3),
-            null), Times.Once);
-    }
-
-    [Fact]
-    public async Task GetMock_WithValidStatusCode_PassesToService()
-    {
-        // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234";
-        _controller.Request.Headers["X-Mock-StatusCode"] = "500";
-        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>(), 500))
-            .ReturnsAsync(new MockFileResult
-            {
-                Content = "{\"error\":\"internal error\"}",
-                ContentType = "application/json",
-                ShouldReturnContent = true
-            });
-
-        // Act
-        var result = await _controller.GetMock();
-
-        // Assert
-        _mockService.Verify(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>(), 500), Times.Once);
-        _controller.Response.StatusCode.Should().Be(500);
-    }
-
-    [Fact]
-    public async Task GetMock_WithInvalidStatusCode_ReturnsBadRequest()
-    {
-        // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234";
-        _controller.Request.Headers["X-Mock-StatusCode"] = "999";
-
-        // Act
-        var result = await _controller.GetMock();
-
-        // Assert
-        result.Should().BeOfType<BadRequestObjectResult>();
-    }
-
-    [Fact]
-    public async Task GetMock_WithStatusCode204_ReturnsEmptyResult()
-    {
-        // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234";
-        _controller.Request.Headers["X-Mock-StatusCode"] = "204";
-        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>(), 204))
-            .ReturnsAsync(new MockFileResult
-            {
-                ShouldReturnContent = false,
-                CustomHeaders = new Dictionary<string, string>()
-            });
-
-        // Act
-        var result = await _controller.GetMock();
-
-        // Assert
-        result.Should().BeOfType<EmptyResult>();
-        _controller.Response.StatusCode.Should().Be(204);
+            It.Is<IEnumerable<string>>(ids => ids.Count() == 3)), Times.Once);
     }
 
     [Fact]
@@ -144,7 +86,7 @@ public class MockControllerTests
     {
         // Arrange
         _controller.Request.Headers["X-Mock-ID"] = "FooBar/9999";
-        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>(), null))
+        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync((MockFileResult?)null);
 
         // Act
@@ -159,7 +101,7 @@ public class MockControllerTests
     {
         // Arrange
         _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234";
-        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>(), null))
+        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
                 Content = "{\"test\":\"data\"}",
@@ -176,5 +118,74 @@ public class MockControllerTests
 
         // Assert
         _controller.Response.Headers["X-Custom-Header"].ToString().Should().Be("CustomValue");
+    }
+
+    [Fact]
+    public async Task GetMock_WithStatusFile_ReturnsStatusCode()
+    {
+        // Arrange
+        _controller.Request.Headers["X-Mock-ID"] = "FooBar/504";
+        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new MockFileResult
+            {
+                Content = "{\"error\":\"Gateway Timeout\"}",
+                ContentType = "application/json",
+                ShouldReturnContent = true,
+                StatusCode = 504
+            });
+
+        // Act
+        var result = await _controller.GetMock();
+
+        // Assert
+        _controller.Response.StatusCode.Should().Be(504);
+        result.Should().BeOfType<ContentResult>();
+    }
+
+    [Fact]
+    public async Task GetMock_WithStatusFile204_ReturnsNoContent()
+    {
+        // Arrange
+        _controller.Request.Headers["X-Mock-ID"] = "FooBar/204";
+        _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new MockFileResult
+            {
+                ShouldReturnContent = false,
+                StatusCode = 204,
+                CustomHeaders = new Dictionary<string, string>()
+            });
+
+        // Act
+        var result = await _controller.GetMock();
+
+        // Assert
+        result.Should().BeOfType<EmptyResult>();
+        _controller.Response.StatusCode.Should().Be(204);
+    }
+
+    [Fact]
+    public async Task GetMock_WithEmptyMockId_ReturnsBadRequest()
+    {
+        // Arrange
+        _controller.Request.Headers["X-Mock-ID"] = "";
+
+        // Act
+        var result = await _controller.GetMock();
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetMock_WithWhitespaceMockId_ReturnsBadRequest()
+    {
+        // Arrange
+        _controller.Request.Headers["X-Mock-ID"] = "   ";
+
+        // Act
+        var result = await _controller.GetMock();
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
     }
 }
