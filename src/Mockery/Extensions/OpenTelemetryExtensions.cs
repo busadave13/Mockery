@@ -44,8 +44,9 @@ public static class OpenTelemetryExtensions
                 {
                     options.AddOtlpExporter();
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
+                    // Fallback to console exporter if OTLP fails
                     options.AddConsoleExporter();
                 }
             }
@@ -100,8 +101,9 @@ public static class OpenTelemetryExtensions
                 {
                     metrics.AddOtlpExporter();
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
+                    // Fallback to console exporter if OTLP fails
                     metrics.AddConsoleExporter();
                 }
             }
@@ -130,8 +132,9 @@ public static class OpenTelemetryExtensions
                 {
                     tracing.AddOtlpExporter();
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
+                    // Fallback to console exporter if OTLP fails
                     tracing.AddConsoleExporter();
                 }
             }

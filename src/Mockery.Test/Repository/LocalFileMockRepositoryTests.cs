@@ -236,4 +236,165 @@ public class LocalFileMockRepositoryTests : IDisposable
         result.Should().NotBeNull();
         result.Value.Content.Should().Be(mockContent);
     }
+
+    [Fact]
+    public async Task FindStatusFileAsync_WhenStatusFileExists_ReturnsStatusCodeAndContent()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "StatusService");
+        Directory.CreateDirectory(servicePath);
+
+        var statusContent = "{\"error\":\"Gateway Timeout\"}";
+        var statusFilePath = Path.Combine(servicePath, "504.status.json");
+        await File.WriteAllTextAsync(statusFilePath, statusContent);
+
+        // Act
+        var result = await repository.FindStatusFileAsync("StatusService", "504");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Value.StatusCode.Should().Be(504);
+        result.Value.Content.Should().Be(statusContent);
+    }
+
+    [Fact]
+    public async Task FindStatusFileAsync_WhenStatusFileIsEmpty_ReturnsStatusCodeWithNullContent()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "EmptyStatusService");
+        Directory.CreateDirectory(servicePath);
+
+        var statusFilePath = Path.Combine(servicePath, "204.status.json");
+        await File.WriteAllTextAsync(statusFilePath, "");
+
+        // Act
+        var result = await repository.FindStatusFileAsync("EmptyStatusService", "204");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Value.StatusCode.Should().Be(204);
+        result.Value.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindStatusFileAsync_WhenStatusFileDoesNotExist_ReturnsNull()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "NoStatusService");
+        Directory.CreateDirectory(servicePath);
+
+        // Act
+        var result = await repository.FindStatusFileAsync("NoStatusService", "500");
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindStatusFileAsync_WhenFileIdIsNotValidStatusCode_ReturnsNull()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "InvalidStatusService");
+        Directory.CreateDirectory(servicePath);
+
+        // Create file with invalid status code in name
+        var statusFilePath = Path.Combine(servicePath, "abc.status.json");
+        await File.WriteAllTextAsync(statusFilePath, "{}");
+
+        // Act
+        var result = await repository.FindStatusFileAsync("InvalidStatusService", "abc");
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindStatusFileAsync_WhenStatusCodeOutOfRange_ReturnsNull()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "OutOfRangeService");
+        Directory.CreateDirectory(servicePath);
+
+        // Create file with out-of-range status code (600 > 599)
+        var statusFilePath = Path.Combine(servicePath, "600.status.json");
+        await File.WriteAllTextAsync(statusFilePath, "{}");
+
+        // Act
+        var result = await repository.FindStatusFileAsync("OutOfRangeService", "600");
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindMockFileAsync_ExcludesStatusJsonFiles()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "StatusExclusionService");
+        Directory.CreateDirectory(servicePath);
+
+        // Create only a .status.json file
+        var statusFilePath = Path.Combine(servicePath, "500.status.json");
+        await File.WriteAllTextAsync(statusFilePath, "{\"error\":\"test\"}");
+
+        // Act
+        var result = await repository.FindMockFileAsync("StatusExclusionService", "500");
+
+        // Assert
+        result.Should().BeNull(); // .status.json should be excluded from regular mock file search
+    }
+
+    [Fact]
+    public async Task FindMockFileAsync_WhenBothRegularAndStatusFileExist_ReturnsRegularFile()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "BothFilesService");
+        Directory.CreateDirectory(servicePath);
+
+        // Create both a regular .json file and a .status.json file
+        var regularFilePath = Path.Combine(servicePath, "500.json");
+        await File.WriteAllTextAsync(regularFilePath, "{\"regular\":\"content\"}");
+
+        var statusFilePath = Path.Combine(servicePath, "500.status.json");
+        await File.WriteAllTextAsync(statusFilePath, "{\"status\":\"content\"}");
+
+        // Act
+        var mockResult = await repository.FindMockFileAsync("BothFilesService", "500");
+        var statusResult = await repository.FindStatusFileAsync("BothFilesService", "500");
+
+        // Assert
+        mockResult.Should().NotBeNull();
+        mockResult.Value.Content.Should().Be("{\"regular\":\"content\"}");
+        
+        statusResult.Should().NotBeNull();
+        statusResult.Value.Content.Should().Be("{\"status\":\"content\"}");
+    }
 }

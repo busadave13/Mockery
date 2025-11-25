@@ -4,5 +4,5 @@ namespace Mockery.BusinessLogic;
 
 public interface IMockService
 {
-    Task<MockFileResult?> GetMockAsync(IEnumerable<string> mockIds, int? statusCode = null);
+    Task<MockFileResult?> GetMockAsync(IEnumerable<string> mockIds);
 }

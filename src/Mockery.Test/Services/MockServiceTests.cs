@@ -62,54 +62,6 @@ public class MockServiceTests
     }
 
     [Fact]
-    public async Task GetMockAsync_WithStatusCode204_DoesNotReturnContent()
-    {
-        // Arrange
-        var mockIds = new[] { "FooBar/1234" };
-
-        // Act
-        var result = await _service.GetMockAsync(mockIds, statusCode: 204);
-
-        // Assert
-        result.Should().NotBeNull();
-        result!.ShouldReturnContent.Should().BeFalse();
-        _mockRepository.Verify(x => x.FindMockFileAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task GetMockAsync_WithStatusCode404_DoesNotReturnContent()
-    {
-        // Arrange
-        var mockIds = new[] { "FooBar/1234" };
-
-        // Act
-        var result = await _service.GetMockAsync(mockIds, statusCode: 404);
-
-        // Assert
-        result.Should().NotBeNull();
-        result!.ShouldReturnContent.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task GetMockAsync_WithStatusCode500_ReturnsContent()
-    {
-        // Arrange
-        var mockIds = new[] { "FooBar/1234" };
-        _mockRepository.Setup(x => x.FindMockFileAsync("FooBar", "1234"))
-            .ReturnsAsync(("{\"error\":\"internal error\"}", ".json"));
-        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
-            .Returns("application/json");
-
-        // Act
-        var result = await _service.GetMockAsync(mockIds, statusCode: 500);
-
-        // Assert
-        result.Should().NotBeNull();
-        result!.ShouldReturnContent.Should().BeTrue();
-        result.Content.Should().Contain("error");
-    }
-
-    [Fact]
     public async Task GetMockAsync_WithHeadersFile_ReturnsCustomHeaders()
     {
         // Arrange
@@ -170,11 +122,183 @@ public class MockServiceTests
         var mockIds = new[] { "FooBar/9999" };
         _mockRepository.Setup(x => x.FindMockFileAsync("FooBar", "9999"))
             .ReturnsAsync(((string, string)?)null);
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "9999"))
+            .ReturnsAsync(((int, string?)?)null);
 
         // Act
         var result = await _service.GetMockAsync(mockIds);
 
         // Assert
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusFile_ReturnsStatusCodeFromFile()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/504" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "504"))
+            .ReturnsAsync((504, "{\"error\":\"Gateway Timeout\"}"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(504);
+        result.Content.Should().Contain("Gateway Timeout");
+        result.ContentType.Should().Be("application/json");
+        result.ShouldReturnContent.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusFile204_ReturnsStatusCodeWithNoContent()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/204" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "204"))
+            .ReturnsAsync((204, (string?)null));
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(204);
+        result.Content.Should().BeEmpty();
+        result.ShouldReturnContent.Should().BeFalse(); // 204 No Content semantics
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusFileAndHeadersFile_ReturnsBoth()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/500" };
+        var customHeaders = new Dictionary<string, string>
+        {
+            { "X-Error-Code", "INTERNAL_ERROR" }
+        };
+
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "500"))
+            .ReturnsAsync((500, "{\"error\":\"Internal Server Error\"}"));
+        _mockRepository.Setup(x => x.FindHeadersFileAsync("FooBar", "500"))
+            .ReturnsAsync(customHeaders);
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(500);
+        result.Content.Should().Contain("Internal Server Error");
+        result.CustomHeaders.Should().ContainKey("X-Error-Code");
+        result.CustomHeaders["X-Error-Code"].Should().Be("INTERNAL_ERROR");
+    }
+
+    [Fact]
+    public async Task GetMockAsync_StatusFileTakesPriorityOverRegularMockFile()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/500" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "500"))
+            .ReturnsAsync((500, "{\"status\":\"file\"}"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(500);
+        result.Content.Should().Contain("status");
+        
+        // Verify FindMockFileAsync was NOT called since status file was found
+        _mockRepository.Verify(x => x.FindMockFileAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WhenNoStatusFile_FallsBackToRegularMockFile()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/test" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "test"))
+            .ReturnsAsync(((int, string?)?)null);
+        _mockRepository.Setup(x => x.FindMockFileAsync("FooBar", "test"))
+            .ReturnsAsync(("{\"regular\":\"mock\"}", ".json"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().BeNull(); // No status code from file
+        result.Content.Should().Contain("regular");
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusFile400_ReturnsContentWithStatusCode()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/400" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "400"))
+            .ReturnsAsync((400, "{\"error\":\"Bad Request\"}"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(400);
+        result.ShouldReturnContent.Should().BeTrue(); // 400 returns content
+        result.Content.Should().Contain("Bad Request");
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithStatusFile401_ReturnsContentWithStatusCode()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/401" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "401"))
+            .ReturnsAsync((401, "{\"error\":\"Unauthorized\"}"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(401);
+        result.ShouldReturnContent.Should().BeTrue();
+        result.Content.Should().Contain("Unauthorized");
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithEmptyStatusFile500_ReturnsStatusCodeWithEmptyContent()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/500" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("FooBar", "500"))
+            .ReturnsAsync((500, ""));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(500);
+        result.ShouldReturnContent.Should().BeTrue();
+        result.Content.Should().BeEmpty(); // Empty content from file
     }
 }

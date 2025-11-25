@@ -63,7 +63,7 @@ public class GitRepositoryRefreshServiceTests
                 AutoRefresh = new AutoRefreshSettings
                 {
                     Enabled = true,
-                    IntervalMinutes = 1
+                    IntervalSeconds = 1 // 1 second for fast testing
                 }
             }
         };
@@ -76,7 +76,7 @@ public class GitRepositoryRefreshServiceTests
 
         // Act
         var executeTask = service.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMinutes(1.1)); // Wait for first refresh
+        await Task.Delay(TimeSpan.FromSeconds(1.5)); // Wait for first refresh
         cts.Cancel();
         await executeTask;
 
@@ -96,7 +96,7 @@ public class GitRepositoryRefreshServiceTests
                 AutoRefresh = new AutoRefreshSettings
                 {
                     Enabled = true,
-                    IntervalMinutes = 1
+                    IntervalSeconds = 1 // 1 second for fast testing
                 }
             }
         };
@@ -119,7 +119,7 @@ public class GitRepositoryRefreshServiceTests
 
         // Act
         var executeTask = service.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMinutes(2.1)); // Wait for two refresh cycles
+        await Task.Delay(TimeSpan.FromSeconds(2.5)); // Wait for two refresh cycles
         cts.Cancel();
         await executeTask;
 
@@ -175,7 +175,7 @@ public class GitRepositoryRefreshServiceTests
                 AutoRefresh = new AutoRefreshSettings
                 {
                     Enabled = true,
-                    IntervalMinutes = 1
+                    IntervalSeconds = 1 // 1 second for fast testing
                 }
             }
         };
@@ -194,7 +194,7 @@ public class GitRepositoryRefreshServiceTests
 
         // Act
         var executeTask = service.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMinutes(2.1)); // Wait for two refresh cycles
+        await Task.Delay(TimeSpan.FromSeconds(2.5)); // Wait for two refresh cycles
         cts.Cancel();
         await executeTask;
 
@@ -203,7 +203,7 @@ public class GitRepositoryRefreshServiceTests
         if (refreshTimes.Count >= 2)
         {
             var interval = refreshTimes[1] - refreshTimes[0];
-            interval.Should().BeCloseTo(TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(5));
+            interval.Should().BeCloseTo(TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(200));
         }
     }
 }

@@ -66,8 +66,10 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
             }
 
             // Search for files matching the pattern {fileId}.*
+            // Exclude .headers.json and .status.json as they are special file types
             var files = Directory.GetFiles(mocksPath, $"{fileId}.*")
                 .Where(f => !f.EndsWith(".headers.json", StringComparison.OrdinalIgnoreCase))
+                .Where(f => !f.EndsWith(".status.json", StringComparison.OrdinalIgnoreCase))
                 .ToArray();
 
             if (files.Length == 0)
@@ -121,6 +123,44 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading headers file {ServiceName}/{FileId}.headers.json", serviceName, fileId);
+            return null;
+        }
+    }
+
+    public async Task<(int StatusCode, string? Content)?> FindStatusFileAsync(string serviceName, string fileId)
+    {
+        if (!_initialized)
+        {
+            throw new InvalidOperationException("Repository not initialized. Call InitializeAsync first.");
+        }
+
+        try
+        {
+            var statusPath = Path.Combine(GetMocksRootPath(), serviceName, $"{fileId}.status.json");
+
+            if (!File.Exists(statusPath))
+            {
+                _logger.LogDebug("Status file not found: {Path}", statusPath);
+                return null;
+            }
+
+            // Parse the status code from the fileId (e.g., "504" from "504.status.json")
+            if (!int.TryParse(fileId, out var statusCode) || statusCode < 100 || statusCode > 599)
+            {
+                _logger.LogWarning("Invalid status code in filename: {FileId}. Must be a valid HTTP status code (100-599)", fileId);
+                return null;
+            }
+
+            // Read content from the file (can be empty)
+            var content = await File.ReadAllTextAsync(statusPath);
+            var trimmedContent = string.IsNullOrWhiteSpace(content) ? null : content;
+
+            _logger.LogInformation("Found status file: {Path}, StatusCode: {StatusCode}", statusPath, statusCode);
+            return (statusCode, trimmedContent);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading status file {ServiceName}/{FileId}.status.json", serviceName, fileId);
             return null;
         }
     }

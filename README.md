@@ -13,7 +13,7 @@ REST API service for serving HTTP mock responses with support for both local fil
 - **Single GET Endpoint**: Simple API with header-based mock selection
 - **Random Selection**: Support for multiple mock IDs with random selection
 - **Custom Headers**: Optional headers files for custom HTTP response headers
-- **Status Code Control**: Dynamic status code behavior via request headers
+- **Status Code Control**: Dynamic status code behavior via `.status.json` files
 - **Rate Limiting**: Dual-strategy rate limiting (per-IP and global)
 - **OpenTelemetry Observability**: Built-in logs, metrics, and traces
 - **Aspire Dashboard Integration**: Development environment includes Aspire Dashboard for telemetry visualization
@@ -177,8 +177,8 @@ curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 # Multiple mock IDs (random selection)
 curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678" http://localhost:8080/api/mock
 
-# With custom status code
-curl -i -H "X-Mock-ID: Products/error" -H "X-Mock-StatusCode: 500" http://localhost:8080/api/mock
+# With status file for error response
+curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
 
 # When running in kubernetes with custom host header
 curl -i -H "X-Mock-ID: test/test" -H "Host: mockery.local.com" http://mockery.local.com/api/mock
@@ -205,15 +205,195 @@ mocks/
 - Service name must match folder name (case-sensitive)
 - File extension determines Content-Type
 
-### Headers File Format
+## Mock File Types
 
-Optional `.headers.json` file alongside mock file:
+Mockery supports several file types that work together to provide flexible mock responses. Each file type serves a specific purpose in constructing HTTP responses.
 
+### Overview
+
+| File Pattern | Purpose | Required | Example |
+|--------------|---------|----------|---------|
+| `{id}.{ext}` | Response body content | Yes | `1234.json`, `user.html` |
+| `{id}.headers.json` | Custom HTTP headers | No | `1234.headers.json` |
+| `{id}.status.json` | HTTP status code + optional body | No | `404.status.json`, `500.status.json` |
+
+### Content Files (`{id}.{extension}`)
+
+The primary mock file containing the response body. The file extension determines the `Content-Type` header.
+
+**Location:** `mocks/{ServiceName}/{FileId}.{extension}`
+
+**Supported Extensions:**
+| Extension | Content-Type |
+|-----------|--------------|
+| `.json` | `application/json` |
+| `.html` | `text/html` |
+| `.xml` | `application/xml` |
+| `.txt` | `text/plain` |
+| `.css` | `text/css` |
+| `.js` | `application/javascript` |
+
+**Example:** `mocks/FooBar/1234.json`
+```json
+{
+  "id": 1234,
+  "name": "Sample Item",
+  "status": "active"
+}
+```
+
+**Usage:**
+```bash
+curl -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+# Returns: HTTP 200 with JSON body
+```
+
+### Headers Files (`{id}.headers.json`)
+
+Optional companion file that adds custom HTTP response headers. Must be named exactly like the content file with `.headers.json` suffix.
+
+**Location:** `mocks/{ServiceName}/{FileId}.headers.json`
+
+**Format:** JSON object with header name-value pairs
+
+**Example:** `mocks/FooBar/1234.headers.json`
 ```json
 {
   "X-Custom-Header": "CustomValue",
-  "Cache-Control": "no-cache"
+  "X-Request-ID": "abc-123-def-456",
+  "Cache-Control": "no-cache, no-store",
+  "X-Service-Version": "1.0.0"
 }
+```
+
+**Usage:**
+```bash
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+# Returns: HTTP 200 with JSON body AND custom headers
+```
+
+**Response Headers:**
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Custom-Header: CustomValue
+X-Request-ID: abc-123-def-456
+Cache-Control: no-cache, no-store
+X-Service-Version: 1.0.0
+```
+
+**Notes:**
+- Headers file is automatically discovered when requesting the matching content file
+- Headers are merged with standard response headers
+- If headers file doesn't exist, only standard headers are returned
+
+### Status Files (`{statusCode}.status.json`)
+
+Special file type that returns a specific HTTP status code based on the filename. The status code is extracted from the first part of the filename.
+
+**Location:** `mocks/{ServiceName}/{StatusCode}.status.json`
+
+**Format:** 
+- Filename must start with a valid HTTP status code (e.g., `404`, `500`, `503`)
+- File extension must be `.status.json`
+- File content is optional - can be empty or contain a JSON response body
+
+**Examples:**
+
+**Empty status file (status code only):** `mocks/FooBar/204.status.json`
+```
+(empty file)
+```
+
+**Status file with body:** `mocks/FooBar/504.status.json`
+```json
+{"error": "Gateway Timeout", "message": "The upstream server did not respond in time"}
+```
+
+**Usage:**
+```bash
+# Request status file - returns HTTP 504 with JSON error body
+curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
+
+# Returns:
+# HTTP/1.1 504 Gateway Timeout
+# Content-Type: application/json
+# {"error": "Gateway Timeout", "message": "The upstream server did not respond in time"}
+```
+
+```bash
+# Request 204 No Content status file
+curl -i -H "X-Mock-ID: FooBar/204" http://localhost:8080/api/mock
+
+# Returns:
+# HTTP/1.1 204 No Content
+# (no body)
+```
+
+**Common Status File Use Cases:**
+| Status Code | File Name | Use Case |
+|-------------|-----------|----------|
+| `400` | `400.status.json` | Bad Request errors |
+| `401` | `401.status.json` | Unauthorized errors |
+| `403` | `403.status.json` | Forbidden errors |
+| `404` | `404.status.json` | Not Found errors |
+| `500` | `500.status.json` | Internal Server Error |
+| `502` | `502.status.json` | Bad Gateway |
+| `503` | `503.status.json` | Service Unavailable |
+| `504` | `504.status.json` | Gateway Timeout |
+
+### Status Code Priority
+
+When determining the HTTP status code for a response, Mockery uses the following priority (highest to lowest):
+
+1. **`.status.json` file** - Status code from the filename
+2. **Default 200 OK** - When no status is specified
+
+### File Resolution Order
+
+When you request `X-Mock-ID: FooBar/504`, Mockery checks for files in this order:
+
+1. **Status file first:** `mocks/FooBar/504.status.json`
+   - If found: Returns content with HTTP status from filename (504)
+2. **Content file second:** `mocks/FooBar/504.json`, `504.html`, etc.
+   - If found: Returns content with HTTP 200
+3. **Not found:** Returns HTTP 404
+
+### Complete Example: Error Scenario Mocking
+
+**Directory Structure:**
+```
+mocks/
+└── UserService/
+    ├── get-user.json           # Success response (200)
+    ├── get-user.headers.json   # Custom headers for success
+    ├── 400.status.json         # Bad request error
+    ├── 401.status.json         # Unauthorized error
+    ├── 404.status.json         # User not found error
+    └── 500.status.json         # Internal server error
+```
+
+**Test Different Scenarios:**
+```bash
+# Success case
+curl -i -H "X-Mock-ID: UserService/get-user" http://localhost:8080/api/mock
+# HTTP 200 with user data and custom headers
+
+# Bad request
+curl -i -H "X-Mock-ID: UserService/400" http://localhost:8080/api/mock
+# HTTP 400 with error message
+
+# Unauthorized
+curl -i -H "X-Mock-ID: UserService/401" http://localhost:8080/api/mock
+# HTTP 401 with auth error
+
+# User not found
+curl -i -H "X-Mock-ID: UserService/404" http://localhost:8080/api/mock
+# HTTP 404 with not found message
+
+# Server error
+curl -i -H "X-Mock-ID: UserService/500" http://localhost:8080/api/mock
+# HTTP 500 with error details
 ```
 
 ## Configuration
