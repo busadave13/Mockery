@@ -22,4 +22,17 @@ public class AutoRefreshSettings
 {
     public bool Enabled { get; set; } = true;
     public int IntervalMinutes { get; set; } = 5;
+    
+    /// <summary>
+    /// Interval in seconds for more granular control. If set to a value > 0, this takes precedence over IntervalMinutes.
+    /// Primarily useful for testing.
+    /// </summary>
+    public int IntervalSeconds { get; set; } = 0;
+    
+    /// <summary>
+    /// Gets the effective interval as a TimeSpan. Uses IntervalSeconds if > 0, otherwise IntervalMinutes.
+    /// </summary>
+    public TimeSpan GetInterval() => IntervalSeconds > 0 
+        ? TimeSpan.FromSeconds(IntervalSeconds) 
+        : TimeSpan.FromMinutes(IntervalMinutes);
 }

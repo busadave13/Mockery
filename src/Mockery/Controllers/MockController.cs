@@ -85,8 +85,8 @@ public class MockController : ControllerBase
                 Response.Headers[header.Key] = header.Value;
             }
 
-            // Set status code (from header or default to 200)
-            var responseStatusCode = statusCode ?? 200;
+            // Set status code (priority: X-Mock-StatusCode header > .status.json file > default 200)
+            var responseStatusCode = statusCode ?? result.StatusCode ?? 200;
             Response.StatusCode = responseStatusCode;
 
             // Return content based on status code behavior

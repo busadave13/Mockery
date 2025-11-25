@@ -47,13 +47,7 @@ public class MockService : IMockService
         var serviceName = parts[0];
         var fileId = parts[1];
 
-        // Determine if we should return content based on status code semantics
-        var shouldReturnContent = ShouldReturnContent(statusCode);
-
-        var result = new MockFileResult
-        {
-            ShouldReturnContent = shouldReturnContent
-        };
+        var result = new MockFileResult();
 
         // Always try to get headers file (if it exists)
         var headers = await _repository.FindHeadersFileAsync(serviceName, fileId);
@@ -62,6 +56,35 @@ public class MockService : IMockService
             result.CustomHeaders = headers;
             _logger.LogInformation("Found {Count} custom headers for {MockId}", headers.Count, selectedMockId);
         }
+
+        // First, check for a .status.json file (e.g., 504.status.json)
+        var statusFile = await _repository.FindStatusFileAsync(serviceName, fileId);
+        if (statusFile != null)
+        {
+            // Status file found - use status code from filename
+            result.StatusCode = statusFile.Value.StatusCode;
+            
+            // Determine content behavior based on effective status code
+            // X-Mock-StatusCode header overrides status file's status code if provided
+            var effectiveStatusCode = statusCode ?? statusFile.Value.StatusCode;
+            result.ShouldReturnContent = ShouldReturnContent(effectiveStatusCode);
+
+            if (result.ShouldReturnContent && !string.IsNullOrEmpty(statusFile.Value.Content))
+            {
+                result.Content = statusFile.Value.Content;
+                result.ContentType = _contentTypeResolver.GetContentType(".json");
+            }
+
+            _logger.LogInformation("Using status file: {ServiceName}/{FileId}.status.json, StatusCode: {StatusCode}",
+                serviceName, fileId, statusFile.Value.StatusCode);
+
+            return result;
+        }
+
+        // No status file found - fall back to regular mock file lookup
+        // Determine if we should return content based on status code semantics
+        var shouldReturnContent = ShouldReturnContent(statusCode);
+        result.ShouldReturnContent = shouldReturnContent;
 
         // Only retrieve mock file content if status code semantics allow it
         if (shouldReturnContent)

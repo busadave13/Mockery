@@ -29,12 +29,11 @@ public class GitRepositoryRefreshService : BackgroundService
             return;
         }
 
-        var intervalMinutes = _settings.Git.AutoRefresh.IntervalMinutes;
-        var interval = TimeSpan.FromMinutes(intervalMinutes);
+        var interval = _settings.Git.AutoRefresh.GetInterval();
 
         _logger.LogInformation(
-            "Git repository auto-refresh enabled with interval of {IntervalMinutes} minutes",
-            intervalMinutes);
+            "Git repository auto-refresh enabled with interval of {Interval}",
+            interval);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -59,8 +58,8 @@ public class GitRepositoryRefreshService : BackgroundService
                 // Log error but continue running
                 _logger.LogError(
                     ex,
-                    "Error occurred during Git repository refresh. Will retry after {IntervalMinutes} minutes",
-                    intervalMinutes);
+                    "Error occurred during Git repository refresh. Will retry after {Interval}",
+                    interval);
             }
         }
     }
