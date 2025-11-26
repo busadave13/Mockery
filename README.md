@@ -196,14 +196,26 @@ mocks/
 │   ├── hydrate.json
 │   ├── hydrate.headers.json
 │   └── error.json
+├── test/                         # Subfolder organization example
+│   ├── staging/
+│   │   └── success.json         # X-Mock-ID: test/staging/success
+│   └── prod/
+│       └── success.json         # X-Mock-ID: test/prod/success
 ```
 
 ### Mock ID Format
 
-- Format: `{ServiceName}/{FileId}`
-- Example: `FooBar/1234`, `Products/hydrate`
-- Service name must match folder name (case-sensitive)
+- Format: `{Path}/{FileId}`
+- The path can include subfolders for organization
+- File ID is always the last segment after the final `/`
 - File extension determines Content-Type
+
+**Examples:**
+| Mock ID | Path | FileId |
+|---------|------|--------|
+| `FooBar/1234` | `FooBar` | `1234` |
+| `FooBar/staging/1234` | `FooBar/staging` | `1234` |
+| `FooBar/staging/private/test` | `FooBar/staging/private` | `test` |
 
 ## Mock File Types
 

@@ -26,11 +26,33 @@ mocks/
 
 ## Mock ID Format
 
-Mock IDs follow the pattern: `{ServiceName}/{FileId}`
+Mock IDs follow the pattern: `{Path}/{FileId}`
 
-- **ServiceName**: Must match the folder name exactly (case-sensitive)
-- **FileId**: File name without extension
+- **Path**: Directory path to the mock file (supports subfolders)
+- **FileId**: File name without extension (always the last segment after the final `/`)
 - **Extension**: Determines the Content-Type header
+
+### Examples
+
+| Mock ID | Path | FileId |
+|---------|------|--------|
+| `FooBar/1234` | `FooBar` | `1234` |
+| `FooBar/Staging/1234` | `FooBar/Staging` | `1234` |
+| `FooBar/Staging/Private/test` | `FooBar/Staging/Private` | `test` |
+
+This allows you to organize mocks by environment, feature, or any other hierarchy:
+
+```
+mocks/
+├── FooBar/
+│   ├── 1234.json                    # X-Mock-ID: FooBar/1234
+│   ├── Staging/
+│   │   ├── 1234.json                # X-Mock-ID: FooBar/Staging/1234
+│   │   └── Private/
+│   │       └── test.json            # X-Mock-ID: FooBar/Staging/Private/test
+│   └── Production/
+│       └── 1234.json                # X-Mock-ID: FooBar/Production/1234
+```
 
 ## Mock File Types
 
