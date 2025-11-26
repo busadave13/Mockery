@@ -49,8 +49,19 @@ This project uses a memory bank for persistent context across sessions. The memo
 
 ### API Usage
 - Endpoint: `GET /api/mock`
-- Header: `X-Mock-ID: ServiceName/FileId`
+- Header: `X-Mock-ID: Path/FileId`
+- Supports subfolders: `X-Mock-ID: ServiceName/Subfolder/FileId`
 - Supports comma-separated IDs for random selection
+
+### Mock ID Format
+The mock ID format is `{Path}/{FileId}` where:
+- **Path**: Directory path to the mock file (can include subfolders)
+- **FileId**: The filename without extension (always the last segment after `/`)
+
+Examples:
+- `FooBar/1234` → path=`FooBar`, fileId=`1234`
+- `FooBar/staging/1234` → path=`FooBar/staging`, fileId=`1234`
+- `test/prod/success` → path=`test/prod`, fileId=`success`
 
 ### Configuration
 - Local mode: `MockRepository.Type = "Local"`

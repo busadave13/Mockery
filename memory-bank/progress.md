@@ -10,7 +10,7 @@ The Mockery project is in a stable, functional state with all core features impl
 - [x] Mock API endpoint (`/api/mock`)
 - [x] X-Mock-ID header parsing (single and comma-separated)
 - [x] Random selection for multiple mock IDs
-- [x] ServiceName/FileId path format parsing
+- [x] Path/FileId format parsing with subfolder support
 
 ### Mock File Types
 - [x] Standard content files (`{id}.json`, `{id}.html`)
@@ -59,7 +59,8 @@ These are potential enhancements that could be considered:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| Current | Nov 2025 | Memory bank initialized |
+| Current | Nov 26, 2025 | Subfolder support for mock IDs |
+| Previous | Nov 25, 2025 | Memory bank initialized |
 
 ## Metrics
 
@@ -79,6 +80,14 @@ These are potential enhancements that could be considered:
 ---
 
 ## Task History
+
+### November 26, 2025
+- ✅ Added subfolder support for mock IDs
+  - Modified `MockService.cs` to parse on last `/` instead of first
+  - Added 5 new unit tests for subfolder scenarios
+  - Updated documentation: `mocks/README.md`, `README.md`, `.clinerules`
+  - All 62 unit tests passing
+  - 12 curl integration tests verified
 
 ### November 25, 2025
 - ✅ Initialized memory bank with 6 documentation files

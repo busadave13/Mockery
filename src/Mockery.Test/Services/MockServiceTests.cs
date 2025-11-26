@@ -301,4 +301,89 @@ public class MockServiceTests
         result.ShouldReturnContent.Should().BeTrue();
         result.Content.Should().BeEmpty(); // Empty content from file
     }
+
+    [Fact]
+    public async Task GetMockAsync_WithSubfolderPath_ReturnsMockFile()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/Staging/1234" };
+        _mockRepository.Setup(x => x.FindMockFileAsync("FooBar/Staging", "1234"))
+            .ReturnsAsync(("{\"env\":\"staging\"}", ".json"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Content.Should().Contain("staging");
+        result.ContentType.Should().Be("application/json");
+        _mockRepository.Verify(x => x.FindMockFileAsync("FooBar/Staging", "1234"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithDeepSubfolderPath_ReturnsMockFile()
+    {
+        // Arrange
+        var mockIds = new[] { "FooBar/Staging/Private/test" };
+        _mockRepository.Setup(x => x.FindMockFileAsync("FooBar/Staging/Private", "test"))
+            .ReturnsAsync(("{\"deep\":\"nested\"}", ".json"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Content.Should().Contain("nested");
+        _mockRepository.Verify(x => x.FindMockFileAsync("FooBar/Staging/Private", "test"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithSubfolderPathAndHeaders_ReturnsCustomHeaders()
+    {
+        // Arrange
+        var mockIds = new[] { "Service/Env/fileId" };
+        var customHeaders = new Dictionary<string, string>
+        {
+            { "X-Environment", "test" }
+        };
+
+        _mockRepository.Setup(x => x.FindMockFileAsync("Service/Env", "fileId"))
+            .ReturnsAsync(("{}", ".json"));
+        _mockRepository.Setup(x => x.FindHeadersFileAsync("Service/Env", "fileId"))
+            .ReturnsAsync(customHeaders);
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.CustomHeaders.Should().ContainKey("X-Environment");
+        _mockRepository.Verify(x => x.FindHeadersFileAsync("Service/Env", "fileId"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMockAsync_WithSubfolderPathAndStatusFile_ReturnsStatusCode()
+    {
+        // Arrange
+        var mockIds = new[] { "Service/Production/500" };
+        _mockRepository.Setup(x => x.FindStatusFileAsync("Service/Production", "500"))
+            .ReturnsAsync((500, "{\"error\":\"Production error\"}"));
+        _mockContentTypeResolver.Setup(x => x.GetContentType(".json"))
+            .Returns("application/json");
+
+        // Act
+        var result = await _service.GetMockAsync(mockIds);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(500);
+        result.Content.Should().Contain("Production error");
+        _mockRepository.Verify(x => x.FindStatusFileAsync("Service/Production", "500"), Times.Once);
+    }
 }

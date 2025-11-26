@@ -36,16 +36,17 @@ public class MockService : IMockService
 
         _logger.LogInformation("Selected mock ID: {MockId}", selectedMockId);
 
-        // Parse mock ID to extract service name and file ID
-        var parts = selectedMockId.Split('/', 2);
-        if (parts.Length != 2)
+        // Parse mock ID to extract service path and file ID
+        // Split on last '/' to support subfolders: FooBar/Staging/1234 -> path=FooBar/Staging, fileId=1234
+        var lastSlashIndex = selectedMockId.LastIndexOf('/');
+        if (lastSlashIndex == -1)
         {
-            _logger.LogWarning("Invalid mock ID format: {MockId}. Expected format: ServiceName/FileId", selectedMockId);
+            _logger.LogWarning("Invalid mock ID format: {MockId}. Expected format: Path/FileId (e.g., ServiceName/FileId or ServiceName/Subfolder/FileId)", selectedMockId);
             return null;
         }
 
-        var serviceName = parts[0];
-        var fileId = parts[1];
+        var serviceName = selectedMockId.Substring(0, lastSlashIndex);
+        var fileId = selectedMockId.Substring(lastSlashIndex + 1);
 
         var result = new MockFileResult();
 

@@ -2,12 +2,27 @@
 
 ## Current Session
 
-**Date**: November 25, 2025
-**Focus**: Memory bank initialization
+**Date**: November 26, 2025
+**Focus**: Subfolder support for mock IDs
 
 ## Recent Changes
 
-### Memory Bank Created
+### Subfolder Support Added (November 26, 2025)
+Added support for subfolders in mock ID paths:
+- **Before**: Only `ServiceName/FileId` format (e.g., `FooBar/1234`)
+- **After**: Supports arbitrary depth (e.g., `FooBar/Staging/1234`, `FooBar/Staging/Private/test`)
+
+**Files Modified:**
+- `src/Mockery/BusinessLogic/MockService.cs` - Changed parsing to split on last `/` instead of first
+- `src/Mockery.Test/Services/MockServiceTests.cs` - Added 5 new tests for subfolder scenarios
+- `mocks/README.md` - Updated documentation with subfolder examples
+
+**Technical Details:**
+- Changed from `Split('/', 2)` to `LastIndexOf('/')` for parsing mock IDs
+- The last segment after the final `/` is always the FileId
+- Everything before it is the path (can include multiple subfolders)
+
+### Memory Bank Created (November 25, 2025)
 Initialized the memory bank documentation structure with:
 - `projectbrief.md` - High-level project overview
 - `productContext.md` - Product goals and user experience
