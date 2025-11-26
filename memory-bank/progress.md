@@ -25,6 +25,7 @@ The Mockery project is in a stable, functional state with all core features impl
 
 ### Infrastructure
 - [x] Docker container support
+- [x] Docker Compose for local deployment
 - [x] Helm charts for Kubernetes deployment
 - [x] Health check endpoints (live, ready, startup)
 - [x] OpenTelemetry observability
@@ -82,6 +83,11 @@ These are potential enhancements that could be considered:
 ## Task History
 
 ### November 26, 2025
+- ✅ Added Docker Compose file for Docker Desktop deployment
+  - Port mapping: 80 (host) → 8080 (container)
+  - Volume mount: `./mocks` → `/app/mocks`
+  - Environment variables for Local repository mode
+
 - ✅ Added subfolder support for mock IDs
   - Modified `MockService.cs` to parse on last `/` instead of first
   - Added 5 new unit tests for subfolder scenarios
