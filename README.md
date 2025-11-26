@@ -68,6 +68,42 @@ curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
 - Development mode is automatic when running locally
 - Mock files are located at repository root: `mocks/{ServiceName}/{FileId}.{extension}`
 
+### Running with Docker Compose (Local Development)
+
+**For local development with Docker, use docker-compose with the `.env` file to configure the mock files location:**
+
+```bash
+# 1. Edit .env to set your custom mocks path (optional)
+# Default: MOCKS_PATH=./mocks
+# Custom: MOCKS_PATH=C:/Users/yourname/sources/mocks
+
+# 2. Start the service
+docker-compose up -d
+
+# 3. Test the endpoint
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
+
+# 4. Stop the service
+docker-compose down
+```
+
+**Configuring Custom Mock Path:**
+
+The `.env` file allows you to override the mocks directory location:
+
+```env
+# Use default project mocks
+MOCKS_PATH=./mocks
+
+# Use a custom location (absolute path)
+MOCKS_PATH=C:/Users/yourname/sources/mocks
+
+# Use environment variable (Docker Compose expands shell variables)
+MOCKS_PATH=${USERPROFILE}/sources/mocks
+```
+
+**Note:** Docker Compose automatically reads the `.env` file from the same directory as `docker-compose.yml`. Changes to `.env` require restarting the container (`docker-compose up -d`).
+
 ### Running with Docker (Production Mode)
 
 **For production deployments, build and run the Docker image:**
