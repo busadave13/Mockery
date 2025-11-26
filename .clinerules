@@ -1,0 +1,68 @@
+# Mockery Project Rules
+
+## Memory Bank Usage
+
+This project uses a memory bank for persistent context across sessions. The memory bank is located in the `memory-bank/` directory.
+
+### When Starting a New Session
+
+1. **Always read the memory bank files first** before starting any task:
+   - `memory-bank/activeContext.md` - Current state and recent changes
+   - `memory-bank/progress.md` - Task tracking and pending work
+   - `memory-bank/projectbrief.md` - Project overview (if needed)
+   - `memory-bank/systemPatterns.md` - Architecture reference (if needed)
+   - `memory-bank/techContext.md` - Technical details (if needed)
+
+2. **Update activeContext.md** at the start of each session with:
+   - Current date
+   - Session focus/goals
+
+### During a Session
+
+1. **Update progress.md** when:
+   - Completing a task
+   - Discovering new issues
+   - Identifying future enhancements
+
+2. **Update activeContext.md** with:
+   - Session notes for important discoveries
+   - Context for next session
+
+### When Ending a Session
+
+1. **Update activeContext.md** with:
+   - Summary of work completed
+   - Any in-progress work
+   - Context needed for next session
+
+2. **Update progress.md** with:
+   - Task history entry for the date
+   - Updated status of completed/pending items
+
+## Project-Specific Guidelines
+
+### Mock File Conventions
+- `{id}.json` - JSON response for specific ID
+- `{id}.html` - HTML response for specific ID  
+- `{statusCode}.status.json` - Response with specific HTTP status
+- `{id}.headers.json` - Custom headers for specific ID
+
+### API Usage
+- Endpoint: `GET /api/mock`
+- Header: `X-Mock-ID: ServiceName/FileId`
+- Supports comma-separated IDs for random selection
+
+### Configuration
+- Local mode: `MockRepository.Type = "Local"`
+- Git mode: `MockRepository.Type = "Git"`
+
+### Testing
+```bash
+# Run tests
+dotnet test
+
+# Run locally
+dotnet run --project src/Mockery
+
+# Test API
+curl -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
