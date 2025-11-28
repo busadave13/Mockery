@@ -2,8 +2,8 @@ apiVersion: v2
 name: mockery
 description: A Helm chart for Mockery - REST API service for serving HTTP mock responses from Git repositories
 type: application
-version: 0.1.17
-appVersion: "0.1.17"
+version: 0.1.18
+appVersion: "0.1.18"
 keywords:
   - mockery
   - mock
