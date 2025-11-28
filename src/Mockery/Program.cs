@@ -1,7 +1,6 @@
 using Mockery.BusinessLogic;
 using Mockery.Configuration;
 using Mockery.Extensions;
-using Mockery.Middleware;
 using Mockery.Repository;
 using Mockery.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -35,10 +34,6 @@ else
         options.AccessToken = mockRepoSettings.Git.AccessToken;
     });
 }
-
-// Configure rate limiting from appsettings
-builder.Services.Configure<RateLimitingOptions>(
-    builder.Configuration.GetSection(RateLimitingOptions.SectionName));
 
 // Add services to the container
 builder.Services.AddControllers();
@@ -139,9 +134,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-// Add rate limiting middleware
-app.UseMiddleware<RateLimitingMiddleware>();
 
 // Add OpenTelemetry observability middleware
 app.UseObservability();
