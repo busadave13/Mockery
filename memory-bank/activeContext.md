@@ -2,10 +2,19 @@
 
 ## Current Session
 
-**Date**: November 26, 2025
-**Focus**: Subfolder support for mock IDs
+**Date**: November 28, 2025
+**Focus**: Remove rate limiting middleware
 
 ## Recent Changes
+
+### Rate Limiting Removed (November 28, 2025)
+Removed rate limiting middleware and all related configuration:
+- **Deleted**: `src/Mockery/Middleware/RateLimitingMiddleware.cs`
+- **Deleted**: `src/Mockery/Configuration/RateLimitingOptions.cs`
+- **Modified**: `src/Mockery/Program.cs` - Removed middleware registration and configuration
+- **Modified**: `src/Mockery/appsettings.json` - Removed RateLimiting section
+- **Modified**: `src/Mockery/appsettings.Development.json` - Removed RateLimiting section
+- **Modified**: `src/Mockery/appsettings.Production.json` - Removed RateLimiting section
 
 ### Subfolder Support Added (November 26, 2025)
 Added support for subfolders in mock ID paths:

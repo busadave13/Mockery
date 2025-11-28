@@ -60,7 +60,8 @@ These are potential enhancements that could be considered:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| Current | Nov 26, 2025 | Subfolder support for mock IDs |
+| Current | Nov 28, 2025 | Rate limiting middleware removed |
+| Previous | Nov 26, 2025 | Subfolder support for mock IDs |
 | Previous | Nov 25, 2025 | Memory bank initialized |
 
 ## Metrics
@@ -75,12 +76,18 @@ These are potential enhancements that could be considered:
 | Services | 3 | Business logic |
 | Repository | 4 | Data access |
 | Configuration | 3 | Options classes |
-| Middleware | 1 | Request processing |
 | Models | 1 | Data structures |
 
 ---
 
 ## Task History
+
+### November 28, 2025
+- ✅ Removed rate limiting middleware
+  - Deleted `RateLimitingMiddleware.cs` and `RateLimitingOptions.cs`
+  - Removed middleware registration from `Program.cs`
+  - Removed `RateLimiting` configuration from all appsettings files
+  - Build verified successful
 
 ### November 26, 2025
 - ✅ Added Docker Compose file for Docker Desktop deployment
