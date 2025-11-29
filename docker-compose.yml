@@ -1,10 +1,13 @@
+name: mockery
 services:
   mockery:
     build: .
+    container_name: mockery
+    restart: unless-stopped
     ports:
       - "3000:8080"
     volumes:
-      - ${MOCKS_PATH}:/app/mocks
+      - ./mocks:/app/mocks
     environment:
       - MockRepository__Type=Local
       - MockRepository__LocalPath=/app
