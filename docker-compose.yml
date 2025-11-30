@@ -7,7 +7,7 @@ services:
     ports:
       - "3000:8080"
     volumes:
-      - ./mocks:/app/mocks
+      - C:\Users\daveh\source\repos\Mocks:/app/mocks
     environment:
       - MockRepository__Type=Local
       - MockRepository__LocalPath=/app
