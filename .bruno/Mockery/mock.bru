@@ -1,0 +1,15 @@
+meta {
+  name: mock
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://{{host}}/api/mock
+  body: none
+  auth: none
+}
+
+headers {
+  X-Mock-ID: weather/prod/success
+}
