@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: mockery-svc
+  name: "{{ .Values.name }}-svc"
   labels:
-    app: mockery
+    app: {{ .Values.name }}
     release: {{ .Release.Name }}
 spec:
   type: {{ .Values.service.type }}
@@ -13,5 +13,5 @@ spec:
     protocol: TCP
     name: http
   selector:
-    app: mockery
+    app: {{ .Values.name }}
     release: {{ .Release.Name }}
