@@ -5,7 +5,7 @@ metadata:
   name: {{ .Values.name }}-pvc
   namespace: {{ .Values.namespace }}
   labels:
-    app: mockery
+    app: {{ .Values.name }}
     release: {{ .Release.Name }}
 spec:
   accessModes:
