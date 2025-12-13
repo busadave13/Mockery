@@ -6,6 +6,7 @@ metadata:
   labels:
     app: {{ .Values.name }}
     release: {{ .Release.Name }}
+    version: {{ .Chart.AppVersion | quote }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -17,6 +18,7 @@ spec:
       labels:
         app: {{ .Values.name }}
         release: {{ .Release.Name }}
+        version: {{ .Chart.AppVersion | quote }}
     spec:
       serviceAccountName: "{{ .Values.name }}-sa"
       containers:
