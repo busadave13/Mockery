@@ -1,7 +1,7 @@
 # Mockery - Technical Design Document
 
-**Version:** 3.2
-**Date:** 2025-11-25
+**Version:** 3.3
+**Date:** 2025-12-13
 **Author:** System Architecture Team
 **Status:** Living Document
 
@@ -55,7 +55,6 @@ Mockery provides a flexible mock server with dual storage modes:
 - File-based organization by service name
 - Status code control via `.status.json` files
 - Custom headers via `.headers.json` files
-- Built-in rate limiting to prevent abuse
 - Full OpenTelemetry observability (metrics, traces, logs)
 - No databases, authentication, or complex infrastructure required
 
@@ -113,15 +112,7 @@ Mockery provides a flexible mock server with dual storage modes:
    - Automatic Content-Type detection from file extension
    - Support common formats (JSON, HTML, XML, plain text, images, etc.)
 
-7. **Rate Limiting & Throttling**
-   - Built-in middleware for dual-strategy request throttling
-   - Per-IP rate limiting: Configurable limits per individual IP address
-   - Global rate limiting: Configurable limits for total service capacity
-   - Both strategies independently configurable via appsettings.json
-   - Prevents abuse and ensures fair resource usage
-   - Returns HTTP 429 (Too Many Requests) when exceeded
-
-8. **Observability**
+7. **Observability**
    - Full OpenTelemetry integration (metrics, traces, logs)
    - Prometheus metrics endpoint for scraping
    - OTLP export support for centralized telemetry
@@ -137,6 +128,7 @@ Mockery provides a flexible mock server with dual storage modes:
 6. **Probe Tracking:** No client application monitoring
 7. **Complex Request Matching:** No endpoint, method, or query parameter matching
 8. **Response Templating:** No dynamic response generation
+9. **Rate Limiting:** No built-in request throttling (use infrastructure-level solutions if needed)
 
 ---
 
@@ -148,7 +140,6 @@ Mockery follows a three-layer architecture pattern with pluggable storage:
 
 **Presentation Layer:**
 - ASP.NET Core 9.0 REST API with single GET endpoint
-- Rate limiting middleware for request throttling
 - OpenTelemetry observability middleware
 - CORS configuration for cross-origin requests
 - Health check endpoints for orchestration
@@ -182,7 +173,7 @@ Mockery follows a three-layer architecture pattern with pluggable storage:
 - Set HTTP response headers (Content-Type, custom headers)
 - Set HTTP response status code (from `.status.json` file or default 200 OK)
 - Return file contents as HTTP response body (if applicable based on status code)
-- Handle exceptions and return appropriate HTTP status codes (400, 404, 429, 500)
+- Handle exceptions and return appropriate HTTP status codes (400, 404, 500)
 
 **Separation of Concerns:**
 - **Does:** Parse HTTP headers, set HTTP responses, handle HTTP status codes
@@ -369,44 +360,7 @@ Repository implementation is selected at startup based on `appsettings.json`:
 }
 ```
 
-#### 3.2.7 Rate Limiting Middleware (`src/Mockery/Middleware/`)
-
-**Class:** `RateLimitingMiddleware`
-
-**Responsibilities:**
-- Track request counts per IP address (per-IP rate limiting) using `ConcurrentDictionary`
-- Track global request counts across all clients (global rate limiting)
-- Enforce configurable rate limits for both strategies
-- Return HTTP 429 (Too Many Requests) when limit exceeded
-- Fixed window algorithm with automatic reset
-- Thread-safe using lock-based synchronization
-
-**Rate Limiting Strategies:**
-1. **Per-IP Rate Limiting:** Limits requests per individual IP address
-2. **Global Rate Limiting:** Limits total requests across all clients
-3. **Combined:** Both limits can be active simultaneously (most restrictive applies)
-
-**Configuration (appsettings.json):**
-```json
-{
-  "RateLimiting": {
-    "Enabled": true,
-    "PerIp": {
-      "Enabled": true,
-      "PermitLimit": 100,
-      "Window": "00:01:00"
-    },
-    "Global": {
-      "Enabled": true,
-      "PermitLimit": 1000,
-      "Window": "00:01:00"
-    },
-    "QueueLimit": 0
-  }
-}
-```
-
-#### 3.2.8 OpenTelemetry Extensions (`src/Mockery/Extensions/`)
+#### 3.2.7 OpenTelemetry Extensions (`src/Mockery/Extensions/`)
 
 **Class:** `OpenTelemetryExtensions`
 
@@ -583,7 +537,6 @@ X-Mock-ID: FooBar/504
 **Security Considerations:**
 - Service intended for development/testing environments
 - Production deployment should use network-level security (VPN, private networks)
-- Built-in rate limiting prevents abuse
 - Optional: Add IP whitelisting at infrastructure level
 
 ### 5.2 Endpoint Specifications
@@ -611,7 +564,6 @@ X-Mock-ID: FooBar/504
 - **Errors:**
   - `400 Bad Request`: Missing `X-Mock-ID` header or no valid mock IDs
   - `404 Not Found`: No matching mock file found in repository
-  - `429 Too Many Requests`: Rate limit exceeded
   - `500 Internal Server Error`: Unexpected error
 
 **Example Requests:**
@@ -685,21 +637,6 @@ Content-Type: application/json
 {
     "error": "Mock not found",
     "mockIds": ["FooBar/9999"]
-}
-```
-
-*Rate Limit Exceeded (Per-IP):*
-```http
-HTTP/1.1 429 Too Many Requests
-Content-Type: application/json
-Retry-After: 60
-
-{
-    "error": "Rate limit exceeded",
-    "limitType": "per-ip",
-    "message": "Too many requests from this IP address. Please try again later.",
-    "limit": 100,
-    "retryAfter": 60
 }
 ```
 
@@ -821,7 +758,7 @@ mocks/FooBar/200.status.json → Returns HTTP 200
 **Decision:** Support optional `.headers.json` files alongside mock files for custom HTTP response headers.
 
 **Rationale:**
-- **Flexibility:** Enable testing of custom headers (authentication, caching, rate limiting, etc.)
+- **Flexibility:** Enable testing of custom headers (authentication, caching, etc.)
 - **Simplicity Preserved:** Headers files are optional; simple mocks work without them
 - **Separation of Concerns:** Response content in mock file, custom headers in separate file
 - **Real-World Testing:** Simulate various HTTP headers for comprehensive testing
@@ -876,31 +813,9 @@ var selectedMockId = mockIdList.Count > 1
 
 **Security Model:**
 - **Network-Level:** Deploy in private networks or behind VPN
-- **Rate Limiting:** Built-in protection against abuse
 - **Infrastructure-Level:** Use Azure Front Door, API Gateway, or firewall rules
 
-### 6.8 Built-In Rate Limiting
-
-**Decision:** Include dual-strategy rate limiting as core middleware.
-
-**Implementation:**
-- **Per-IP Rate Limiting:** Track requests per IP using `ConcurrentDictionary`
-- **Global Rate Limiting:** Track total requests using shared counter
-- **Fixed Window Algorithm:** Reset counter when window expires
-- **Thread-Safe:** Lock-based synchronization for counter updates
-
-**Configuration:**
-```json
-{
-  "RateLimiting": {
-    "Enabled": true,
-    "PerIp": { "Enabled": true, "PermitLimit": 100, "Window": "00:01:00" },
-    "Global": { "Enabled": true, "PermitLimit": 1000, "Window": "00:01:00" }
-  }
-}
-```
-
-### 6.9 OpenTelemetry Integration
+### 6.8 OpenTelemetry Integration
 
 **Decision:** Full OpenTelemetry integration for observability.
 
@@ -988,11 +903,6 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph "Middleware Layer"
-        RateLimiting[RateLimitingMiddleware]
-        OTEL[OpenTelemetry Middleware]
-    end
-
     subgraph "Presentation Layer"
         MockCtrl[MockController]
         HealthChecks[Health Check Endpoints]
@@ -1019,9 +929,6 @@ graph TB
         GitRemote[Git Repository]
     end
 
-    RateLimiting --> MockCtrl
-    OTEL --> MockCtrl
-    
     MockCtrl --> MockService
     MockService --> RepoInterface
     MockService --> ContentTypeResolver
@@ -1037,7 +944,6 @@ graph TB
 
     LibGit2 --> GitRemote
 
-    style RateLimiting fill:#FF6B6B,stroke:#fff,stroke-width:2px,color:#fff
     style MockService fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
     style BaseRepo fill:#00A6ED,stroke:#fff,stroke-width:2px,color:#fff
 ```
@@ -1047,20 +953,12 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant Client
-    participant RateLimit as RateLimitMiddleware
     participant Controller as MockController
     participant Service as MockService
     participant Repo as Repository
     participant FS as FileSystem
 
-    Client->>RateLimit: GET /api/mock<br/>X-Mock-ID: FooBar/504
-    RateLimit->>RateLimit: Check rate limits
-    
-    alt Rate Limit Exceeded
-        RateLimit-->>Client: 429 Too Many Requests
-    end
-
-    RateLimit->>Controller: Forward request
+    Client->>Controller: GET /api/mock<br/>X-Mock-ID: FooBar/504
     Controller->>Controller: Parse X-Mock-ID header
     Controller->>Service: GetMockAsync(["FooBar/504"])
 
@@ -1133,7 +1031,6 @@ graph TB
 
 **Security Model:**
 - **Network-Level Security:** Deploy in private networks, behind VPN, or with IP whitelisting
-- **Rate Limiting:** Built-in protection limits requests per IP and globally
 - **Environment Separation:** Intended for development/testing environments
 
 #### 9.1.2 Input Validation
@@ -1145,7 +1042,7 @@ graph TB
 #### 9.1.3 Known Security Considerations
 
 1. **Public Access:** Service accessible if exposed to internet
-   - Mitigation: Deploy in private network, use rate limiting
+   - Mitigation: Deploy in private network
 
 2. **Git Credentials:** Access token stored in configuration
    - Mitigation: Use Kubernetes secrets, environment variables
@@ -1184,7 +1081,6 @@ graph TB
 
 - **Stateless API:** No in-memory session state
 - **Independent Clones:** Each instance maintains own Git clone
-- **Rate Limiting:** Per-instance (not distributed)
 
 #### 9.3.2 Kubernetes Scaling
 
@@ -1234,7 +1130,6 @@ spec:
 - `200 OK`: Mock file found and returned
 - `400 Bad Request`: Missing or invalid `X-Mock-ID` header
 - `404 Not Found`: Mock file not found
-- `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: Unhandled exception
 
 **Error Response Format:**
@@ -1385,10 +1280,6 @@ persistence:
   "MockRepository": {
     "Type": "Local",
     "LocalPath": "../.."
-  },
-  "RateLimiting": {
-    "PerIp": { "Enabled": false },
-    "Global": { "PermitLimit": 10000 }
   }
 }
 ```
@@ -1407,10 +1298,6 @@ persistence:
         "IntervalMinutes": 5
       }
     }
-  },
-  "RateLimiting": {
-    "PerIp": { "Enabled": true, "PermitLimit": 50 },
-    "Global": { "PermitLimit": 500 }
   }
 }
 ```
@@ -1478,12 +1365,10 @@ src/
 │   ├── Services/
 │   │   ├── ContentTypeResolver.cs
 │   │   └── GitRepositoryRefreshService.cs
-│   ├── Middleware/RateLimitingMiddleware.cs
 │   ├── Extensions/OpenTelemetryExtensions.cs
 │   ├── Configuration/
 │   │   ├── GitRepositoryOptions.cs
-│   │   ├── MockRepositorySettings.cs
-│   │   └── RateLimitingOptions.cs
+│   │   └── MockRepositorySettings.cs
 │   └── Program.cs
 ├── Mockery.Test/
 │   ├── Controllers/
@@ -1509,16 +1394,15 @@ src/
 - Multiple Git repositories per service
 - Enhanced headers support
 - Mock validation on refresh
+- Rate limiting middleware (if needed)
 
 **Long-Term:**
 - Mock versioning via Git tags
 - Multi-branch support
-- Distributed rate limiting (Redis)
 
 ### 13.2 Technical Debt
 
 - No in-memory caching layer
-- Rate limiting is per-instance (not distributed)
 - Permissive CORS configuration
 
 ---
@@ -1563,3 +1447,4 @@ src/
 | 3.0 | 2025-11-16 | System Architecture Team | Dual-mode repository support, Strategy pattern |
 | 3.1 | 2025-11-25 | System Architecture Team | Documentation updates |
 | 3.2 | 2025-11-25 | System Architecture Team | Updated to reflect actual implementation: removed X-Mock-StatusCode header (replaced by .status.json files), added OpenTelemetry observability, updated content types, corrected port to 8080, updated LibGit2Sharp to 0.30.0, added Helm chart documentation, updated configuration structure |
+| 3.3 | 2025-12-13 | System Architecture Team | Removed rate limiting references (not implemented in codebase), updated project structure to match actual implementation |

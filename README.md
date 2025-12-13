@@ -14,7 +14,6 @@ REST API service for serving HTTP mock responses with support for both local fil
 - **Random Selection**: Support for multiple mock IDs with random selection
 - **Custom Headers**: Optional headers files for custom HTTP response headers
 - **Status Code Control**: Dynamic status code behavior via `.status.json` files
-- **Rate Limiting**: Dual-strategy rate limiting (per-IP and global)
 - **OpenTelemetry Observability**: Built-in logs, metrics, and traces
 - **Aspire Dashboard Integration**: Development environment includes Aspire Dashboard for telemetry visualization
 - **No Authentication**: Designed for development/testing environments
@@ -494,26 +493,6 @@ Mockery supports two storage modes configured via `appsettings.json`:
 - Required for Docker/production deployments
 - Ideal for production/staging environments
 
-### Rate Limiting
-
-```json
-{
-  "RateLimiting": {
-    "Enabled": true,
-    "PerIp": {
-      "Enabled": true,
-      "PermitLimit": 100,
-      "Window": "00:01:00"
-    },
-    "Global": {
-      "Enabled": true,
-      "PermitLimit": 1000,
-      "Window": "00:01:00"
-    }
-  }
-}
-```
-
 ## Development
 
 ### Building and Testing
@@ -549,28 +528,27 @@ Mockery/
 │       ├── hydrate.json
 │       └── error.json
 ├── docker-compose.yml                           # Aspire Dashboard for local development
-├── Dockerfile                                  # Production Docker image
-├── NuGet.config                                # NuGet configuration (public sources only)
+├── Dockerfile                                   # Production Docker image
+├── NuGet.config                                 # NuGet configuration (public sources only)
 └── src/
     ├── Mockery/                                 # Main application
     │   ├── Controllers/                         # API controllers
-    │   ├── BusinessLogic/                      # Service layer
-    │   ├── Repository/                         # Mock repository implementations
+    │   ├── BusinessLogic/                       # Service layer
+    │   ├── Repository/                          # Mock repository implementations
     │   │   ├── FileSystemMockRepositoryBase.cs  # Shared file access logic
-    │   │   ├── GitMockRepository.cs            # Git-based implementation
+    │   │   ├── GitMockRepository.cs             # Git-based implementation
     │   │   └── LocalFileMockRepository.cs       # Local file system implementation
-    │   ├── Services/                           # Supporting services
-    │   ├── Middleware/                         # Rate limiting middleware
-    │   ├── Models/                             # Domain models
-    │   ├── Configuration/                      # Configuration classes
-    │   ├── Extensions/                         # Extension methods
-    │   │   └── OpenTelemetryExtensions.cs      # OpenTelemetry configuration
+    │   ├── Services/                            # Supporting services
+    │   ├── Models/                              # Domain models
+    │   ├── Configuration/                       # Configuration classes
+    │   ├── Extensions/                          # Extension methods
+    │   │   └── OpenTelemetryExtensions.cs       # OpenTelemetry configuration
     │   ├── Properties/
-    │   │   └── launchSettings.json             # Launch profiles for IDE
-    │   ├── appsettings.json                    # Base configuration
-    │   ├── appsettings.Development.json        # Local development config
-    │   └── appsettings.Production.json         # Docker/production config
-    └── Mockery.Test/                           # Unit tests (44 tests)
+    │   │   └── launchSettings.json              # Launch profiles for IDE
+    │   ├── appsettings.json                     # Base configuration
+    │   ├── appsettings.Development.json         # Local development config
+    │   └── appsettings.Production.json          # Docker/production config
+    └── Mockery.Test/                            # Unit tests (44 tests)
         ├── Controllers/
         ├── Repository/
         ├── Services/
