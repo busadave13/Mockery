@@ -4,7 +4,7 @@ metadata:
   name: "{{ .Values.name }}-dep"
   namespace: {{ .Values.namespace }}
   labels:
-    app: mockery
+    app: {{ .Values.name }}
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicaCount }}
@@ -20,7 +20,7 @@ spec:
     spec:
       serviceAccountName: "{{ .Values.name }}-sa"
       containers:
-        - name: mockery
+        - name: {{ .Values.name }}
           image: {{ .Values.image.name }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
