@@ -1,7 +1,7 @@
 # Default values for mockery Helm chart
 
 name: mockery
-namespace: dev
+namespace: mockery
 replicaCount: 2
 
 image:
