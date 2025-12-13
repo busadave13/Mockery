@@ -5,7 +5,7 @@ namespace: mockery
 replicaCount: 2
 
 image:
-  name: mockery-mockery:latest
+  name: mockery:latest
   pullPolicy: Always
 
 service:
