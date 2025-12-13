@@ -2,16 +2,11 @@
 
 name: mockery
 namespace: mockery
-replicaCount: 2
+replicaCount: 3
 
 image:
   name: mockery:latest
   pullPolicy: Always
-
-service:
-  type: ClusterIP
-  port: 80
-  targetPort: 8080
 
 resources:
   limits:
