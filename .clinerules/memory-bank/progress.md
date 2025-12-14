@@ -96,6 +96,7 @@ Total tests: 44
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v3.4 | 2025-12-14 | Docker Compose port 3000→5500, memory bank moved to `.clinerules/memory-bank` |
 | v3.3 | 2025-12-13 | Removed rate limiting references, updated project structure |
 | v3.2 | 2025-11-25 | Added OpenTelemetry, `.status.json` files, updated port to 8080 |
 | v3.1 | 2025-11-25 | Documentation updates |
@@ -149,7 +150,14 @@ helm install mockery oci://ghcr.io/busadave13/helm/mockery --namespace dev
 
 ## Session Notes
 
-### 2025-12-14
+### 2025-12-14 (Session 2)
+- Updated Docker Compose port mapping from 3000 to 5500
+- Moved memory bank from `.memory-bank` to `.clinerules/memory-bank`
+- Updated README.md with new port 5500
+- Updated design document to v3.4
+- Created GitHub issue #51: "Support different mock responses for different services in a single request"
+
+### 2025-12-14 (Session 1)
 - Initialized memory bank with 5 core documents:
   - `productContext.md` - Product purpose and features
   - `activeContext.md` - Current state and work areas

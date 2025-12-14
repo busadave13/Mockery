@@ -1,7 +1,7 @@
 # Mockery - Technical Design Document
 
-**Version:** 3.3
-**Date:** 2025-12-13
+**Version:** 3.4
+**Date:** 2025-12-14
 **Author:** System Architecture Team
 **Status:** Living Document
 
@@ -1448,3 +1448,4 @@ src/
 | 3.1 | 2025-11-25 | System Architecture Team | Documentation updates |
 | 3.2 | 2025-11-25 | System Architecture Team | Updated to reflect actual implementation: removed X-Mock-StatusCode header (replaced by .status.json files), added OpenTelemetry observability, updated content types, corrected port to 8080, updated LibGit2Sharp to 0.30.0, added Helm chart documentation, updated configuration structure |
 | 3.3 | 2025-12-13 | System Architecture Team | Removed rate limiting references (not implemented in codebase), updated project structure to match actual implementation |
+| 3.4 | 2025-12-14 | System Architecture Team | Updated Docker Compose port mapping from 3000 to 5500, moved memory bank to .clinerules/memory-bank |

@@ -12,6 +12,7 @@ The project is a mature, well-documented ASP.NET Core 9.0 mock server with:
 ## Recent Changes
 
 Based on the design document version history:
+- **v3.4 (2025-12-14)**: Updated Docker Compose port mapping from 3000 to 5500, moved memory bank to `.clinerules/memory-bank`
 - **v3.3 (2025-12-13)**: Removed rate limiting references, updated project structure
 - **v3.2 (2025-11-25)**: Removed `X-Mock-StatusCode` header (replaced by `.status.json` files), added OpenTelemetry, updated port to 8080, updated LibGit2Sharp to 0.30.0
 
@@ -24,9 +25,9 @@ Based on the design document version history:
 ### Repository Structure
 ```
 Mockery/
+├── .clinerules/memory-bank/  # Project memory (this directory)
 ├── .docs/                    # Design documentation
-│   └── mockery-design.md     # Technical design document (v3.3)
-├── .memory-bank/             # Project memory (this directory)
+│   └── mockery-design.md     # Technical design document (v3.4)
 ├── charts/mockery/           # Helm chart for Kubernetes
 ├── mocks/                    # Sample mock files
 ├── src/
