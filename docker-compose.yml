@@ -5,7 +5,7 @@ services:
     container_name: mockery
     restart: unless-stopped
     ports:
-      - "3000:8080"
+      - "5500:8080"
     volumes:
       - C:\Users\daveh\source\repos\Mocks:/app/mocks
     environment:
