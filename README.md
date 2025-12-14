@@ -80,7 +80,7 @@ curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
 docker-compose up -d
 
 # 3. Test the endpoint
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:3000/api/mock
+curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:5500/api/mock
 
 # 4. Stop the service
 docker-compose down
