@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Mockery.BusinessLogic;
+using Mockery.Services;
 
 namespace Mockery.Controllers;
 
@@ -9,11 +10,13 @@ public class MockController : ControllerBase
 {
     private readonly IMockService _mockService;
     private readonly ILogger<MockController> _logger;
+    private readonly MockeryMetrics _metrics;
 
-    public MockController(IMockService mockService, ILogger<MockController> logger)
+    public MockController(IMockService mockService, ILogger<MockController> logger, MockeryMetrics metrics)
     {
         _mockService = mockService;
         _logger = logger;
+        _metrics = metrics;
     }
 
     [HttpGet]
@@ -63,6 +66,9 @@ public class MockController : ControllerBase
             // Set status code from .status.json file or default to 200
             var responseStatusCode = result.StatusCode ?? 200;
             Response.StatusCode = responseStatusCode;
+
+            // Record metric for mock served
+            _metrics.RecordMockServed(result.MockId, responseStatusCode);
 
             // Return content based on status code behavior
             if (result.ShouldReturnContent && !string.IsNullOrEmpty(result.Content))
