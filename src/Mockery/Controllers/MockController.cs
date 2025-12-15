@@ -19,11 +19,11 @@ public class MockController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetMock()
     {
-        // Extract X-Mock-ID header
-        if (!Request.Headers.TryGetValue("X-Mock-ID", out var mockIdHeader) || string.IsNullOrWhiteSpace(mockIdHeader))
+        // Extract X-Mockery-Mock header
+        if (!Request.Headers.TryGetValue("X-Mockery-Mock", out var mockIdHeader) || string.IsNullOrWhiteSpace(mockIdHeader))
         {
-            _logger.LogWarning("X-Mock-ID header is missing or empty");
-            return BadRequest(new { error = "Missing X-Mock-ID header" });
+            _logger.LogWarning("X-Mockery-Mock header is missing or empty");
+            return BadRequest(new { error = "Missing X-Mockery-Mock header" });
         }
 
         // Parse comma-separated mock IDs
@@ -35,8 +35,8 @@ public class MockController : ControllerBase
 
         if (!mockIds.Any())
         {
-            _logger.LogWarning("X-Mock-ID header contains no valid mock IDs");
-            return BadRequest(new { error = "X-Mock-ID header contains no valid mock IDs" });
+            _logger.LogWarning("X-Mockery-Mock header contains no valid mock IDs");
+            return BadRequest(new { error = "X-Mockery-Mock header contains no valid mock IDs" });
         }
 
         try

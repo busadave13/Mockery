@@ -45,13 +45,13 @@ This allows you to organize mocks by environment, feature, or any other hierarch
 ```
 mocks/
 ├── FooBar/
-│   ├── 1234.json                    # X-Mock-ID: FooBar/1234
+│   ├── 1234.json                    # X-Mockery-Mock: FooBar/1234
 │   ├── Staging/
-│   │   ├── 1234.json                # X-Mock-ID: FooBar/Staging/1234
+│   │   ├── 1234.json                # X-Mockery-Mock: FooBar/Staging/1234
 │   │   └── Private/
-│   │       └── test.json            # X-Mock-ID: FooBar/Staging/Private/test
+│   │       └── test.json            # X-Mockery-Mock: FooBar/Staging/Private/test
 │   └── Production/
-│       └── 1234.json                # X-Mock-ID: FooBar/Production/1234
+│       └── 1234.json                # X-Mockery-Mock: FooBar/Production/1234
 ```
 
 ## Mock File Types
@@ -104,7 +104,7 @@ Special file type that returns a specific HTTP status code based on the filename
 **Usage:**
 ```bash
 # Returns HTTP 504 with the JSON error body
-curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/504" http://localhost:8080/api/mock
 ```
 
 **Common Status Files:**
@@ -125,7 +125,7 @@ curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
 
 ### File Resolution Order
 
-When you request `X-Mock-ID: FooBar/504`:
+When you request `X-Mockery-Mock: FooBar/504`:
 
 1. **Status file first:** `mocks/FooBar/504.status.json` → Returns with HTTP 504
 2. **Content file second:** `mocks/FooBar/504.json` → Returns with HTTP 200
@@ -162,13 +162,13 @@ To test these mocks locally:
 
 ```bash
 # Single mock ID (default 200 OK)
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234" http://localhost:8080/api/mock
 
 # Status file for error response (HTTP 504)
-curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/504" http://localhost:8080/api/mock
 
 # Random selection from multiple IDs
-curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/hydrate" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234,FooBar/5678,Products/hydrate" http://localhost:8080/api/mock
 ```
 
 ## Adding New Mocks (Local Development)
@@ -179,7 +179,7 @@ curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678,Products/hydrate" http://localhos
 4. Test immediately - changes are picked up automatically!
 
 ```bash
-curl -i -H "X-Mock-ID: MyService/mockid" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: MyService/mockid" http://localhost:8080/api/mock
 ```
 
 ## Supported File Extensions
@@ -294,7 +294,7 @@ mockery-mocks/
 
 **Get User (200 OK):**
 ```bash
-curl -i -H "X-Mock-ID: UserService/get-user" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: UserService/get-user" http://localhost:8080/api/mock
 ```
 
 Response includes custom headers:
@@ -306,18 +306,18 @@ Response includes custom headers:
 **User Not Found (404) - using status file:**
 ```bash
 # Create 404.status.json in UserService folder
-curl -i -H "X-Mock-ID: UserService/404" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: UserService/404" http://localhost:8080/api/mock
 ```
 
 **Server Error (500) - using status file:**
 ```bash
 # Create 500.status.json in ProductService folder
-curl -i -H "X-Mock-ID: ProductService/500" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: ProductService/500" http://localhost:8080/api/mock
 ```
 
 **Random Selection:**
 ```bash
-curl -i -H "X-Mock-ID: PaymentService/success,PaymentService/failed,PaymentService/pending" \
+curl -i -H "X-Mockery-Mock: PaymentService/success,PaymentService/failed,PaymentService/pending" \
      http://localhost:8080/api/mock
 ```
 

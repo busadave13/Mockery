@@ -31,7 +31,7 @@ public class MockControllerTests
     public async Task GetMock_WithValidMockId_ReturnsOk()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234";
+        _controller.Request.Headers["X-Mockery-Mock"] = "FooBar/1234";
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
@@ -64,7 +64,7 @@ public class MockControllerTests
     public async Task GetMock_WithMultipleMockIds_ParsesCorrectly()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234,FooBar/5678,Products/9012";
+        _controller.Request.Headers["X-Mockery-Mock"] = "FooBar/1234,FooBar/5678,Products/9012";
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
@@ -85,7 +85,7 @@ public class MockControllerTests
     public async Task GetMock_WhenMockNotFound_ReturnsNotFound()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/9999";
+        _controller.Request.Headers["X-Mockery-Mock"] = "FooBar/9999";
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync((MockFileResult?)null);
 
@@ -100,7 +100,7 @@ public class MockControllerTests
     public async Task GetMock_WithCustomHeaders_SetsResponseHeaders()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/1234";
+        _controller.Request.Headers["X-Mockery-Mock"] = "FooBar/1234";
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
@@ -124,7 +124,7 @@ public class MockControllerTests
     public async Task GetMock_WithStatusFile_ReturnsStatusCode()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/504";
+        _controller.Request.Headers["X-Mockery-Mock"] = "FooBar/504";
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
@@ -146,7 +146,7 @@ public class MockControllerTests
     public async Task GetMock_WithStatusFile204_ReturnsNoContent()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "FooBar/204";
+        _controller.Request.Headers["X-Mockery-Mock"] = "FooBar/204";
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
@@ -167,7 +167,7 @@ public class MockControllerTests
     public async Task GetMock_WithEmptyMockId_ReturnsBadRequest()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "";
+        _controller.Request.Headers["X-Mockery-Mock"] = "";
 
         // Act
         var result = await _controller.GetMock();
@@ -180,7 +180,7 @@ public class MockControllerTests
     public async Task GetMock_WithWhitespaceMockId_ReturnsBadRequest()
     {
         // Arrange
-        _controller.Request.Headers["X-Mock-ID"] = "   ";
+        _controller.Request.Headers["X-Mockery-Mock"] = "   ";
 
         // Act
         var result = await _controller.GetMock();

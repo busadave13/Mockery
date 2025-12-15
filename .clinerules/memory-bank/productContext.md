@@ -19,7 +19,7 @@ Mockery is a REST API service for serving HTTP mock responses. It enables develo
 ## Core Value Proposition
 
 - **Dual Storage Modes**: Local file system for development, Git repository for production
-- **Simple API**: Single GET endpoint with header-based mock selection (`X-Mock-ID`)
+- **Simple API**: Single GET endpoint with header-based mock selection (`X-Mockery-Mock`)
 - **Version Control**: Full audit trail of mock changes via Git history
 - **Zero Setup**: No tokens, authentication, or complex configuration required
 - **Observable**: Built-in OpenTelemetry integration for monitoring
@@ -42,7 +42,7 @@ Mockery is a REST API service for serving HTTP mock responses. It enables develo
 ### Development (Local Mode)
 1. Create mock files in `mocks/{ServiceName}/{FileId}.{extension}`
 2. Run `dotnet run` from `src/Mockery`
-3. Request mocks via `curl -H "X-Mock-ID: ServiceName/FileId" http://localhost:8080/api/mock`
+3. Request mocks via `curl -H "X-Mockery-Mock: ServiceName/FileId" http://localhost:8080/api/mock`
 4. Changes are picked up immediately (no restart needed)
 
 ### Production (Git Mode)
