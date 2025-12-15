@@ -38,8 +38,8 @@ cd src/Mockery
 dotnet run --urls "http://localhost:8080"
 
 # 4. Test with included sample mocks
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
-curl -i -H "X-Mock-ID: Products/hydrate" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: Products/hydrate" http://localhost:8080/api/mock
 ```
 
 **Sample mocks included:**
@@ -59,7 +59,7 @@ mkdir -p mocks/MyService
 echo '{"status":"success"}' > mocks/MyService/test.json
 
 # Test it immediately (no restart needed)
-curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: MyService/test" http://localhost:8080/api/mock
 ```
 
 **Important:**
@@ -80,7 +80,7 @@ curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
 docker-compose up -d
 
 # 3. Test the endpoint
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:5500/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234" http://localhost:5500/api/mock
 
 # 4. Stop the service
 docker-compose down
@@ -117,7 +117,7 @@ docker run -d --name mockery -p 8080:8080 \
   mockery:latest
 
 # 3. Test the endpoints
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234" http://localhost:8080/api/mock
 
 # 4. Stop and remove
 docker stop mockery && docker rm mockery
@@ -207,16 +207,16 @@ For more Helm configuration options, see [charts/mockery/values.yaml](charts/moc
 
 ```bash
 # Single mock ID
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234" http://localhost:8080/api/mock
 
 # Multiple mock IDs (random selection)
-curl -i -H "X-Mock-ID: FooBar/1234,FooBar/5678" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234,FooBar/5678" http://localhost:8080/api/mock
 
 # With status file for error response
-curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/504" http://localhost:8080/api/mock
 
 # When running in kubernetes with custom host header
-curl -i -H "X-Mock-ID: test/test" -H "Host: mockery.local.com" http://mockery.local.com/api/mock
+curl -i -H "X-Mockery-Mock: test/test" -H "Host: mockery.local.com" http://mockery.local.com/api/mock
 ```
 
 ### Mock Repository Structure
@@ -233,9 +233,9 @@ mocks/
 │   └── error.json
 ├── test/                         # Subfolder organization example
 │   ├── staging/
-│   │   └── success.json         # X-Mock-ID: test/staging/success
+│   │   └── success.json         # X-Mockery-Mock: test/staging/success
 │   └── prod/
-│       └── success.json         # X-Mock-ID: test/prod/success
+│       └── success.json         # X-Mockery-Mock: test/prod/success
 ```
 
 ### Mock ID Format
@@ -291,7 +291,7 @@ The primary mock file containing the response body. The file extension determine
 
 **Usage:**
 ```bash
-curl -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -H "X-Mockery-Mock: FooBar/1234" http://localhost:8080/api/mock
 # Returns: HTTP 200 with JSON body
 ```
 
@@ -315,7 +315,7 @@ Optional companion file that adds custom HTTP response headers. Must be named ex
 
 **Usage:**
 ```bash
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234" http://localhost:8080/api/mock
 # Returns: HTTP 200 with JSON body AND custom headers
 ```
 
@@ -360,7 +360,7 @@ Special file type that returns a specific HTTP status code based on the filename
 **Usage:**
 ```bash
 # Request status file - returns HTTP 504 with JSON error body
-curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/504" http://localhost:8080/api/mock
 
 # Returns:
 # HTTP/1.1 504 Gateway Timeout
@@ -370,7 +370,7 @@ curl -i -H "X-Mock-ID: FooBar/504" http://localhost:8080/api/mock
 
 ```bash
 # Request 204 No Content status file
-curl -i -H "X-Mock-ID: FooBar/204" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/204" http://localhost:8080/api/mock
 
 # Returns:
 # HTTP/1.1 204 No Content
@@ -398,7 +398,7 @@ When determining the HTTP status code for a response, Mockery uses the following
 
 ### File Resolution Order
 
-When you request `X-Mock-ID: FooBar/504`, Mockery checks for files in this order:
+When you request `X-Mockery-Mock: FooBar/504`, Mockery checks for files in this order:
 
 1. **Status file first:** `mocks/FooBar/504.status.json`
    - If found: Returns content with HTTP status from filename (504)
@@ -423,23 +423,23 @@ mocks/
 **Test Different Scenarios:**
 ```bash
 # Success case
-curl -i -H "X-Mock-ID: UserService/get-user" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: UserService/get-user" http://localhost:8080/api/mock
 # HTTP 200 with user data and custom headers
 
 # Bad request
-curl -i -H "X-Mock-ID: UserService/400" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: UserService/400" http://localhost:8080/api/mock
 # HTTP 400 with error message
 
 # Unauthorized
-curl -i -H "X-Mock-ID: UserService/401" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: UserService/401" http://localhost:8080/api/mock
 # HTTP 401 with auth error
 
 # User not found
-curl -i -H "X-Mock-ID: UserService/404" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: UserService/404" http://localhost:8080/api/mock
 # HTTP 404 with not found message
 
 # Server error
-curl -i -H "X-Mock-ID: UserService/500" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: UserService/500" http://localhost:8080/api/mock
 # HTTP 500 with error details
 ```
 

@@ -165,7 +165,7 @@ Mockery follows a three-layer architecture pattern with pluggable storage:
 | `MockController` | `/api/mock` | None | Retrieve mock content by mock ID(s) |
 
 **HTTP Layer Responsibilities:**
-- Extract `X-Mock-ID` header from HTTP request
+- Extract `X-Mockery-Mock` header from HTTP request
 - Parse comma-separated mock IDs into collection (e.g., `"FooBar/1234,FooBar/5678"` → `["FooBar/1234", "FooBar/5678"]`)
 - Validate header presence and format
 - Call business logic service with parsed mock IDs
@@ -495,7 +495,7 @@ mocks/
 
 ### 4.4 Status File Resolution
 
-When you request `X-Mock-ID: FooBar/504`:
+When you request `X-Mockery-Mock: FooBar/504`:
 
 1. **Status file first:** `mocks/FooBar/504.status.json` → Returns with HTTP 504
 2. **Content file second:** `mocks/FooBar/504.json` → Returns with HTTP 200
@@ -509,15 +509,15 @@ When you request `X-Mock-ID: FooBar/504`:
 
 **Mock Request Headers:**
 ```
-X-Mock-ID: FooBar/1234
+X-Mockery-Mock: FooBar/1234
 ```
 or (multiple mock IDs for random selection):
 ```
-X-Mock-ID: FooBar/1234,FooBar/5678,Products/hydrate
+X-Mockery-Mock: FooBar/1234,FooBar/5678,Products/hydrate
 ```
 or (status file for error response):
 ```
-X-Mock-ID: FooBar/504
+X-Mockery-Mock: FooBar/504
 ```
 
 **Mock Response:**
@@ -546,11 +546,11 @@ X-Mock-ID: FooBar/504
 **GET /api/mock**
 - **Auth:** None
 - **Headers:**
-  - `X-Mock-ID: <service>/<mock-id>` or `X-Mock-ID: <service1>/<id1>,<service2>/<id2>` (required)
+  - `X-Mockery-Mock: <service>/<mock-id>` or `X-Mockery-Mock: <service1>/<id1>,<service2>/<id2>` (required)
 - **Response:** HTTP status code (from `.status.json` or default 200) with mock file contents and custom headers
 - **Content-Type:** Determined from file extension
 - **Behavior:**
-  - Parse `X-Mock-ID` header (required, format: `ServiceName/MockId`)
+  - Parse `X-Mockery-Mock` header (required, format: `ServiceName/MockId`)
   - If single mock ID: Use that mock ID
   - If multiple mock IDs (comma-separated): Randomly select one using `Random.Shared`
   - Check for status file first (`{ServiceName}/{MockId}.status.json`)
@@ -562,7 +562,7 @@ X-Mock-ID: FooBar/504
   - Add custom headers from headers file (if present)
   - Return response based on file type
 - **Errors:**
-  - `400 Bad Request`: Missing `X-Mock-ID` header or no valid mock IDs
+  - `400 Bad Request`: Missing `X-Mockery-Mock` header or no valid mock IDs
   - `404 Not Found`: No matching mock file found in repository
   - `500 Internal Server Error`: Unexpected error
 
@@ -572,21 +572,21 @@ X-Mock-ID: FooBar/504
 ```http
 GET /api/mock HTTP/1.1
 Host: mockery.example.com
-X-Mock-ID: FooBar/1234
+X-Mockery-Mock: FooBar/1234
 ```
 
 *Multiple Mock IDs (random selection):*
 ```http
 GET /api/mock HTTP/1.1
 Host: mockery.example.com
-X-Mock-ID: FooBar/1234,FooBar/5678,Products/hydrate
+X-Mockery-Mock: FooBar/1234,FooBar/5678,Products/hydrate
 ```
 
 *Status File (Gateway Timeout):*
 ```http
 GET /api/mock HTTP/1.1
 Host: mockery.example.com
-X-Mock-ID: FooBar/504
+X-Mockery-Mock: FooBar/504
 ```
 
 **Example Responses:**
@@ -887,7 +887,7 @@ graph TB
     FileSystem[Local File System<br/>Repository Clone/Local Mocks]
     OTEL[OpenTelemetry Collector<br/>Aspire Dashboard]
 
-    Client -->|GET /api/mock<br/>X-Mock-ID| MockeryAPI
+    Client -->|GET /api/mock<br/>X-Mockery-Mock| MockeryAPI
     MockeryAPI -->|Pull on Startup<br/>Periodic Refresh| GitRepo
     MockeryAPI -->|Read Mock Files| FileSystem
     MockeryAPI -.->|Metrics/Traces/Logs| OTEL
@@ -958,8 +958,8 @@ sequenceDiagram
     participant Repo as Repository
     participant FS as FileSystem
 
-    Client->>Controller: GET /api/mock<br/>X-Mock-ID: FooBar/504
-    Controller->>Controller: Parse X-Mock-ID header
+    Client->>Controller: GET /api/mock<br/>X-Mockery-Mock: FooBar/504
+    Controller->>Controller: Parse X-Mockery-Mock header
     Controller->>Service: GetMockAsync(["FooBar/504"])
 
     Service->>Service: Parse: service=FooBar, fileId=504
@@ -1128,7 +1128,7 @@ spec:
 
 **Standard HTTP Status Codes:**
 - `200 OK`: Mock file found and returned
-- `400 Bad Request`: Missing or invalid `X-Mock-ID` header
+- `400 Bad Request`: Missing or invalid `X-Mockery-Mock` header
 - `404 Not Found`: Mock file not found
 - `500 Internal Server Error`: Unhandled exception
 
@@ -1192,7 +1192,7 @@ public class MockControllerIntegrationTests : IClassFixture<WebApplicationFactor
     public async Task GetMock_WithValidMockId_Returns200()
     {
         var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Mock-ID", "FooBar/1234");
+        client.DefaultRequestHeaders.Add("X-Mockery-Mock", "FooBar/1234");
         
         var response = await client.GetAsync("/api/mock");
         
@@ -1323,7 +1323,7 @@ dotnet run
 
 **Test Endpoint:**
 ```bash
-curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: FooBar/1234" http://localhost:8080/api/mock
 ```
 
 ### 12.2 Adding Mocks
@@ -1332,13 +1332,13 @@ curl -i -H "X-Mock-ID: FooBar/1234" http://localhost:8080/api/mock
 ```bash
 mkdir -p mocks/MyService
 echo '{"status":"success"}' > mocks/MyService/test.json
-curl -i -H "X-Mock-ID: MyService/test" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: MyService/test" http://localhost:8080/api/mock
 ```
 
 **With Status Code:**
 ```bash
 echo '{"error":"Not Found"}' > mocks/MyService/404.status.json
-curl -i -H "X-Mock-ID: MyService/404" http://localhost:8080/api/mock
+curl -i -H "X-Mockery-Mock: MyService/404" http://localhost:8080/api/mock
 # Returns HTTP 404 with error JSON
 ```
 
@@ -1434,7 +1434,7 @@ src/
 | **File ID** | Unique identifier for mock within a service |
 | **Headers File** | Optional `.headers.json` file with custom HTTP headers |
 | **Status File** | `.status.json` file with status code in filename |
-| **X-Mock-ID** | Required request header containing mock ID(s) |
+| **X-Mockery-Mock** | Required request header containing mock ID(s) |
 | **Local Mode** | Development mode using local file system |
 | **Git Mode** | Production mode using Git repository |
 

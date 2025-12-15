@@ -132,7 +132,7 @@ src/Mockery/
 ```
 
 ### Error Handling
-- `400 Bad Request` - Missing or invalid `X-Mock-ID` header
+- `400 Bad Request` - Missing or invalid `X-Mockery-Mock` header
 - `404 Not Found` - Mock file not found
 - `500 Internal Server Error` - Unhandled exception
 

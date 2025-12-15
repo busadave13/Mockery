@@ -41,7 +41,7 @@ Mockery/
 ## Key Interfaces
 
 ### API Endpoint
-- `GET /api/mock` with `X-Mock-ID` header
+- `GET /api/mock` with `X-Mockery-Mock` header
 - Health checks: `/health/live`, `/health/ready`, `/health/startup`
 - Metrics: `/metrics` (Prometheus format)
 

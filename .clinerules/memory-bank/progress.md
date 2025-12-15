@@ -9,7 +9,7 @@ The Mockery project is a mature, well-tested mock server ready for production us
 ## Completed Milestones
 
 ### ✅ Core Functionality
-- [x] Single GET endpoint (`/api/mock`) with `X-Mock-ID` header
+- [x] Single GET endpoint (`/api/mock`) with `X-Mockery-Mock` header
 - [x] Mock file retrieval from file system
 - [x] Content-Type detection from file extension
 - [x] Random selection from multiple mock IDs
