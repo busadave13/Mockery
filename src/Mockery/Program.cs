@@ -56,6 +56,7 @@ else
 }
 builder.Services.AddScoped<IMockService, MockService>();
 builder.Services.AddSingleton<IContentTypeResolver, ContentTypeResolver>();
+builder.Services.AddSingleton<MockeryMetrics>();
 
 // Add health checks
 builder.Services.AddHealthChecks()

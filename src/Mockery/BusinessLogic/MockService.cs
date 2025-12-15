@@ -48,7 +48,10 @@ public class MockService : IMockService
         var serviceName = selectedMockId.Substring(0, lastSlashIndex);
         var fileId = selectedMockId.Substring(lastSlashIndex + 1);
 
-        var result = new MockFileResult();
+        var result = new MockFileResult
+        {
+            MockId = selectedMockId
+        };
 
         // Always try to get headers file (if it exists)
         var headers = await _repository.FindHeadersFileAsync(serviceName, fileId);

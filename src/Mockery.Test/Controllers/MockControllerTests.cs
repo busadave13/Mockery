@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Mockery.BusinessLogic;
 using Mockery.Controllers;
 using Mockery.Models;
+using Mockery.Services;
 using Moq;
 using Xunit;
 
@@ -14,13 +16,19 @@ public class MockControllerTests
 {
     private readonly Mock<IMockService> _mockService;
     private readonly Mock<ILogger<MockController>> _mockLogger;
+    private readonly MockeryMetrics _metrics;
     private readonly MockController _controller;
 
     public MockControllerTests()
     {
         _mockService = new Mock<IMockService>();
         _mockLogger = new Mock<ILogger<MockController>>();
-        _controller = new MockController(_mockService.Object, _mockLogger.Object);
+
+        // Create a real MockeryMetrics with a test meter factory
+        var meterFactory = new TestMeterFactory();
+        _metrics = new MockeryMetrics(meterFactory);
+
+        _controller = new MockController(_mockService.Object, _mockLogger.Object, _metrics);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -35,6 +43,7 @@ public class MockControllerTests
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
+                MockId = "FooBar/1234",
                 Content = "{\"test\":\"data\"}",
                 ContentType = "application/json",
                 ShouldReturnContent = true
@@ -68,6 +77,7 @@ public class MockControllerTests
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
+                MockId = "FooBar/1234",
                 Content = "{\"test\":\"data\"}",
                 ContentType = "application/json",
                 ShouldReturnContent = true
@@ -104,6 +114,7 @@ public class MockControllerTests
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
+                MockId = "FooBar/1234",
                 Content = "{\"test\":\"data\"}",
                 ContentType = "application/json",
                 ShouldReturnContent = true,
@@ -128,6 +139,7 @@ public class MockControllerTests
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
+                MockId = "FooBar/504",
                 Content = "{\"error\":\"Gateway Timeout\"}",
                 ContentType = "application/json",
                 ShouldReturnContent = true,
@@ -150,6 +162,7 @@ public class MockControllerTests
         _mockService.Setup(x => x.GetMockAsync(It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new MockFileResult
             {
+                MockId = "FooBar/204",
                 ShouldReturnContent = false,
                 StatusCode = 204,
                 CustomHeaders = new Dictionary<string, string>()
@@ -187,5 +200,27 @@ public class MockControllerTests
 
         // Assert
         result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    // Test helper class for creating meters in tests
+    private class TestMeterFactory : IMeterFactory
+    {
+        private readonly List<Meter> _meters = new();
+
+        public Meter Create(MeterOptions options)
+        {
+            var meter = new Meter(options.Name, options.Version);
+            _meters.Add(meter);
+            return meter;
+        }
+
+        public void Dispose()
+        {
+            foreach (var meter in _meters)
+            {
+                meter.Dispose();
+            }
+            _meters.Clear();
+        }
     }
 }
