@@ -67,7 +67,12 @@ The Mockery project is a mature, well-tested mock server ready for production us
 ## Current Work
 
 ### ✅ Recently Completed (2025-12-18)
-- **Fixed serviceaccount.yaml YAML Parse Error** (v3.9)
+- **GET /api/mocks now filters hidden files/folders** (v3.8 - API)
+  - Hidden files and folders (starting with `.`) are now excluded from directory listings
+  - Filters out `.git`, `.gitignore`, `.env`, `.vscode`, etc.
+  - Added 4 new unit tests for hidden file filtering
+  - All 95 tests passing
+- **Fixed serviceaccount.yaml YAML Parse Error** (v3.9 - Helm)
   - Fixed invalid template syntax: `{ { .Values.namespace } }` → `{{ .Values.namespace }}`
   - Spaces inside curly braces broke Helm template parsing
   - Helm lint and template dry-run both pass successfully
@@ -105,8 +110,8 @@ None currently tracked.
 
 ```
 Test Run Successful.
-Total tests: 91
-     Passed: 91
+Total tests: 95
+     Passed: 95
      Failed: 0
      Skipped: 0
 ```
@@ -145,7 +150,7 @@ Total tests: 91
 | Metric | Value |
 |--------|-------|
 | **Lines of Code** | ~2,500 (estimated) |
-| **Test Count** | 91 |
+| **Test Count** | 95 |
 | **Test Coverage** | High (all major components) |
 | **Dependencies** | 12 NuGet packages |
 | **Container Size** | ~100MB (estimated) |

@@ -201,10 +201,17 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
 
             var items = new List<DirectoryItem>();
 
-            // Get directories
+            // Get directories (exclude hidden folders starting with '.')
             foreach (var dir in Directory.GetDirectories(fullPath))
             {
                 var dirInfo = new DirectoryInfo(dir);
+                
+                // Skip hidden folders (those starting with '.')
+                if (dirInfo.Name.StartsWith('.'))
+                {
+                    continue;
+                }
+                
                 items.Add(new DirectoryItem
                 {
                     Name = dirInfo.Name,
@@ -212,10 +219,17 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
                 });
             }
 
-            // Get files
+            // Get files (exclude hidden files starting with '.')
             foreach (var file in Directory.GetFiles(fullPath))
             {
                 var fileInfo = new FileInfo(file);
+                
+                // Skip hidden files (those starting with '.')
+                if (fileInfo.Name.StartsWith('.'))
+                {
+                    continue;
+                }
+                
                 items.Add(new DirectoryItem
                 {
                     Name = fileInfo.Name,

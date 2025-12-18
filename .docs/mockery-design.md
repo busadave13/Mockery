@@ -1,6 +1,6 @@
 # Mockery - Technical Design Document
 
-**Version:** 3.6
+**Version:** 3.8
 **Date:** 2025-12-18
 **Author:** System Architecture Team
 **Status:** Living Document
@@ -654,6 +654,7 @@ The Mock Management API provides CRUD operations for managing mock files. These 
   - Empty header or "/" returns root directory listing
   - Path can include leading slashes (e.g., `//weather/prod`)
   - Returns folders and files with metadata (name, type, extension, size)
+  - **Hidden files/folders excluded:** Items starting with `.` (e.g., `.git`, `.gitignore`) are filtered out
 
 **Example Request:**
 ```http
@@ -1607,3 +1608,4 @@ src/
 | 3.5 | 2025-12-17 | System Architecture Team | Added Mock Management API (GET/POST/DELETE /api/mocks) for listing, creating, and deleting mock files. Git mode auto-commits and pushes changes. Total tests: 89. |
 | 3.6 | 2025-12-18 | System Architecture Team | Added idempotency check for POST /api/mocks (returns 409 Conflict if file exists). Added Git access token configuration documentation. Fixed Git staging path for commit/push. Total tests: 91. |
 | 3.7 | 2025-12-18 | System Architecture Team | Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()` since the file no longer exists after deletion. Total tests: 91. |
+| 3.8 | 2025-12-18 | System Architecture Team | GET /api/mocks now filters out hidden files and folders (items starting with `.` like `.git`, `.gitignore`). Total tests: 95. |
