@@ -1606,3 +1606,4 @@ src/
 | 3.4 | 2025-12-14 | System Architecture Team | Updated Docker Compose port mapping from 3000 to 5500, moved memory bank to .clinerules/memory-bank |
 | 3.5 | 2025-12-17 | System Architecture Team | Added Mock Management API (GET/POST/DELETE /api/mocks) for listing, creating, and deleting mock files. Git mode auto-commits and pushes changes. Total tests: 89. |
 | 3.6 | 2025-12-18 | System Architecture Team | Added idempotency check for POST /api/mocks (returns 409 Conflict if file exists). Added Git access token configuration documentation. Fixed Git staging path for commit/push. Total tests: 91. |
+| 3.7 | 2025-12-18 | System Architecture Team | Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()` since the file no longer exists after deletion. Total tests: 91. |

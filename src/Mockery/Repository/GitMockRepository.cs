@@ -169,7 +169,7 @@ public class GitMockRepository : FileSystemMockRepositoryBase
         // Then commit and push to Git
         try
         {
-            await CommitAndPushAsync($"Delete {Path.GetFileName(path)}", path);
+            await CommitAndPushAsync($"Delete {Path.GetFileName(path)}", path, isDelete: true);
             
             return result with { CommittedToGit = true };
         }
@@ -181,7 +181,7 @@ public class GitMockRepository : FileSystemMockRepositoryBase
         }
     }
     
-    private async Task CommitAndPushAsync(string commitMessage, string filePath)
+    private async Task CommitAndPushAsync(string commitMessage, string filePath, bool isDelete = false)
     {
         await Task.Run(() =>
         {
@@ -194,30 +194,41 @@ public class GitMockRepository : FileSystemMockRepositoryBase
                 normalizedPath = normalizedPath.Substring(1);
             }
             
-            _logger.LogInformation("Staging file: {NormalizedPath} in repo: {RepoPath}", normalizedPath, _options.ClonePath);
+            _logger.LogInformation("Staging file: {NormalizedPath} in repo: {RepoPath}, isDelete: {IsDelete}", 
+                normalizedPath, _options.ClonePath, isDelete);
             
-            // Verify the file exists before staging
-            var absolutePath = Path.Combine(_options.ClonePath, normalizedPath);
-            if (!File.Exists(absolutePath))
+            if (isDelete)
             {
-                throw new FileNotFoundException($"Cannot stage file - file not found at: {absolutePath}");
+                // For delete operations, use Remove to stage the deletion
+                Commands.Remove(repo, normalizedPath, removeFromWorkingDirectory: false);
+                _logger.LogInformation("Staged deletion for: {NormalizedPath}", normalizedPath);
             }
-            
-            // Stage the specific file using relative path
-            Commands.Stage(repo, normalizedPath);
+            else
+            {
+                // For add/modify operations, verify the file exists before staging
+                var absolutePath = Path.Combine(_options.ClonePath, normalizedPath);
+                if (!File.Exists(absolutePath))
+                {
+                    throw new FileNotFoundException($"Cannot stage file - file not found at: {absolutePath}");
+                }
+                
+                // Stage the specific file using relative path
+                Commands.Stage(repo, normalizedPath);
+            }
             
             // Log status after staging
             var status = repo.RetrieveStatus();
             var stagedCount = status.Staged.Count();
             var modifiedCount = status.Modified.Count();
             var addedCount = status.Added.Count();
-            _logger.LogInformation("Git status after staging: Staged={Staged}, Modified={Modified}, Added={Added}, IsDirty={IsDirty}", 
-                stagedCount, modifiedCount, addedCount, status.IsDirty);
+            var removedCount = status.Removed.Count();
+            _logger.LogInformation("Git status after staging: Staged={Staged}, Modified={Modified}, Added={Added}, Removed={Removed}, IsDirty={IsDirty}", 
+                stagedCount, modifiedCount, addedCount, removedCount, status.IsDirty);
             
             // Check if there are any changes to commit
             if (!status.IsDirty)
             {
-                _logger.LogWarning("No changes to commit for {Path} - file may already be committed", filePath);
+                _logger.LogWarning("No changes to commit for {Path} - file may already be committed or deleted", filePath);
                 return;
             }
             

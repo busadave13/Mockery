@@ -67,12 +67,13 @@ The Mockery project is a mature, well-tested mock server ready for production us
 ## Current Work
 
 ### ✅ Recently Completed (2025-12-18)
+- Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()` since the file no longer exists after deletion (v3.7)
 - Fixed POST /api/mocks Git commit/push not working (staging with explicit file path instead of wildcard)
 - Added idempotency check - POST /api/mocks now returns 409 Conflict if file already exists
 - Added 2 new unit tests for idempotency behavior
 - Added Git access token configuration documentation
 - Created `.env.example` template file
-- Updated design document to v3.6
+- Updated design document to v3.7
 - Total tests: 91
 
 ### 📋 Backlog
@@ -114,6 +115,7 @@ Total tests: 91
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v3.7 | 2025-12-18 | Fixed DELETE /api/mocks Git staging - uses `Commands.Remove()` for deletions. Total tests: 91. |
 | v3.6 | 2025-12-18 | Added idempotency check (409 Conflict), Git token config docs. Total tests: 91. |
 | v3.5 | 2025-12-17 | Added Mock Management API (GET/POST/DELETE /api/mocks). Total tests: 89. |
 | v3.4 | 2025-12-14 | Docker Compose port 3000→5500, memory bank moved to `.clinerules/memory-bank` |
@@ -197,7 +199,14 @@ For Git push operations, set `MOCKERY_GIT_TOKEN`:
 
 ## Session Notes
 
-### 2025-12-18
+### 2025-12-18 (Session 2)
+- Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()`
+- Root cause: After `base.DeleteFileAsync()` deletes the file, `Commands.Stage()` fails because the file no longer exists
+- Solution: Use `Commands.Remove(repo, normalizedPath, removeFromWorkingDirectory: false)` for delete operations
+- Updated design document to v3.7
+- All 91 tests passing
+
+### 2025-12-18 (Session 1)
 - Fixed POST /api/mocks Git commit/push - was using wildcard path instead of specific file path
 - Added idempotency check - returns 409 Conflict if file already exists
 - Added `.env.example` template for token configuration
