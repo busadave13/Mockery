@@ -1,3 +1,4 @@
+
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Mockery.BusinessLogic;
@@ -142,6 +143,21 @@ public class MocksManagementServiceTests
 
         // Assert
         result.CommittedToGit.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CreateFileAsync_WhenFileAlreadyExists_PropagatesException()
+    {
+        // Arrange
+        _mockRepository.Setup(r => r.CreateFileAsync("weather/prod/success.json", "content"))
+            .ThrowsAsync(new InvalidOperationException("File already exists: weather/prod/success.json"));
+
+        // Act
+        var act = () => _service.CreateFileAsync("weather/prod/success.json", "content");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*already exists*");
     }
 
     #endregion

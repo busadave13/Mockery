@@ -204,6 +204,23 @@ public class MocksControllerTests
         response.CommittedToGit.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task CreateMock_WhenFileAlreadyExists_Returns409Conflict()
+    {
+        // Arrange
+        var content = "{\"temp\": 72}";
+        SetupHttpContext("weather/prod/success.json", content);
+        _mockService.Setup(s => s.CreateFileAsync("weather/prod/success.json", content))
+            .ThrowsAsync(new InvalidOperationException("File already exists: weather/prod/success.json"));
+
+        // Act
+        var result = await _controller.CreateMock();
+
+        // Assert
+        var conflictResult = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        conflictResult.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+    }
+
     #endregion
 
     #region DeleteMock Tests

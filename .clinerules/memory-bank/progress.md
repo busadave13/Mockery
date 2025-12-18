@@ -22,12 +22,14 @@ The Mockery project is a mature, well-tested mock server ready for production us
 - [x] Strategy pattern for repository abstraction
 - [x] Background refresh service for Git mode
 
-### ✅ Mock Management API (v3.5)
+### ✅ Mock Management API (v3.5-3.6)
 - [x] GET /api/mocks - List directory contents
 - [x] POST /api/mocks - Create mock files
 - [x] DELETE /api/mocks - Delete mock files
 - [x] Auto-commit and push in Git mode
 - [x] Empty folder cleanup on delete
+- [x] Idempotency check - 409 Conflict if file exists (v3.6)
+- [x] Git access token configuration documentation (v3.6)
 
 ### ✅ Observability
 - [x] OpenTelemetry integration (logs, metrics, traces)
@@ -41,7 +43,7 @@ The Mockery project is a mature, well-tested mock server ready for production us
 - [x] Startup probe (`/health/startup`)
 
 ### ✅ Testing
-- [x] 89 comprehensive unit tests
+- [x] 91 comprehensive unit tests
 - [x] Controller tests (MockController, MocksController)
 - [x] Service tests (MockService, MocksManagementService)
 - [x] Repository tests (both Git and Local)
@@ -52,10 +54,11 @@ The Mockery project is a mature, well-tested mock server ready for production us
 - [x] Helm chart for Kubernetes
 - [x] GitHub Actions CI/CD pipeline
 - [x] Docker Compose for local development
+- [x] `.env.example` template for configuration
 
 ### ✅ Documentation
 - [x] README.md with usage instructions
-- [x] Technical design document (`.docs/mockery-design.md`)
+- [x] Technical design document (`.docs/mockery-design.md`) v3.6
 - [x] Memory bank documentation
 - [x] Sample mock files included
 
@@ -63,11 +66,14 @@ The Mockery project is a mature, well-tested mock server ready for production us
 
 ## Current Work
 
-### 🔄 Recently Completed (2025-12-17)
-- Added Mock Management API (GET/POST/DELETE /api/mocks)
-- Created 23 new unit tests
-- Updated design document to v3.5
-- Updated memory bank
+### ✅ Recently Completed (2025-12-18)
+- Fixed POST /api/mocks Git commit/push not working (staging with explicit file path instead of wildcard)
+- Added idempotency check - POST /api/mocks now returns 409 Conflict if file already exists
+- Added 2 new unit tests for idempotency behavior
+- Added Git access token configuration documentation
+- Created `.env.example` template file
+- Updated design document to v3.6
+- Total tests: 91
 
 ### 📋 Backlog
 - No active backlog items
@@ -84,8 +90,8 @@ None currently tracked.
 
 ```
 Test Run Successful.
-Total tests: 89
-     Passed: 89
+Total tests: 91
+     Passed: 91
      Failed: 0
      Skipped: 0
 ```
@@ -94,9 +100,9 @@ Total tests: 89
 | Component | Tests | Status |
 |-----------|-------|--------|
 | MockController | Multiple | ✅ Pass |
-| MocksController | 11 | ✅ Pass |
+| MocksController | 13 | ✅ Pass |
 | MockService | Multiple | ✅ Pass |
-| MocksManagementService | 12 | ✅ Pass |
+| MocksManagementService | 14 | ✅ Pass |
 | ContentTypeResolver | Multiple | ✅ Pass |
 | GitMockRepository | Multiple | ✅ Pass |
 | LocalFileMockRepository | Multiple | ✅ Pass |
@@ -108,6 +114,7 @@ Total tests: 89
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v3.6 | 2025-12-18 | Added idempotency check (409 Conflict), Git token config docs. Total tests: 91. |
 | v3.5 | 2025-12-17 | Added Mock Management API (GET/POST/DELETE /api/mocks). Total tests: 89. |
 | v3.4 | 2025-12-14 | Docker Compose port 3000→5500, memory bank moved to `.clinerules/memory-bank` |
 | v3.3 | 2025-12-13 | Removed rate limiting references, updated project structure |
@@ -122,7 +129,7 @@ Total tests: 89
 | Metric | Value |
 |--------|-------|
 | **Lines of Code** | ~2,500 (estimated) |
-| **Test Count** | 89 |
+| **Test Count** | 91 |
 | **Test Coverage** | High (all major components) |
 | **Dependencies** | 12 NuGet packages |
 | **Container Size** | ~100MB (estimated) |
@@ -160,7 +167,7 @@ helm install mockery oci://ghcr.io/busadave13/helm/mockery --namespace dev
 |----------|--------|---------|
 | `/api/mock` | GET | Retrieve mock content |
 | `/api/mocks` | GET | List directory contents |
-| `/api/mocks` | POST | Create mock file |
+| `/api/mocks` | POST | Create mock file (409 if exists) |
 | `/api/mocks` | DELETE | Delete mock file |
 | `/health/live` | GET | Liveness probe |
 | `/health/ready` | GET | Readiness probe |
@@ -169,7 +176,36 @@ helm install mockery oci://ghcr.io/busadave13/helm/mockery --namespace dev
 
 ---
 
+## Configuration
+
+### Git Mode with Access Token
+For Git push operations, set `MOCKERY_GIT_TOKEN`:
+
+1. **Docker Compose `.env` file** (recommended):
+   ```
+   MOCKERY_GIT_TOKEN=ghp_your_github_personal_access_token
+   ```
+
+2. **Environment variable**:
+   ```powershell
+   [Environment]::SetEnvironmentVariable("MOCKERY_GIT_TOKEN", "ghp_...", "User")
+   ```
+
+3. **Kubernetes Secret** - see design document
+
+---
+
 ## Session Notes
+
+### 2025-12-18
+- Fixed POST /api/mocks Git commit/push - was using wildcard path instead of specific file path
+- Added idempotency check - returns 409 Conflict if file already exists
+- Added `.env.example` template for token configuration
+- Updated design document to v3.6 with:
+  - 409 Conflict response documentation
+  - Git access token configuration section
+  - Updated version history
+- All 91 tests passing
 
 ### 2025-12-17
 - Implemented Mock Management API with 3 new endpoints

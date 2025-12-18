@@ -61,6 +61,7 @@ public class MocksController : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(CreateMockResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateMock()
     {
         // Get path from header (required)
@@ -91,6 +92,11 @@ public class MocksController : ControllerBase
         {
             var result = await _mocksManagementService.CreateFileAsync(path, content);
             return StatusCode(StatusCodes.Status201Created, result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already exists"))
+        {
+            _logger.LogWarning(ex, "File already exists: {Path}", path);
+            return Conflict(new { error = ex.Message });
         }
         catch (ArgumentException ex)
         {

@@ -141,13 +141,21 @@ public class GitMockRepository : FileSystemMockRepositoryBase
         // Then commit and push to Git
         try
         {
-            await CommitAndPushAsync($"Add {result.FileName}", path);
+            // Build the full relative path from the response (Path + FileName)
+            var relativePath = string.IsNullOrEmpty(result.Path) 
+                ? result.FileName 
+                : $"{result.Path}/{result.FileName}";
+            
+            _logger.LogInformation("Git commit: path={Path}, relativePath={RelativePath}, repoPath={RepoPath}", 
+                path, relativePath, _options.ClonePath);
+            
+            await CommitAndPushAsync($"Add {result.FileName}", relativePath);
             
             return result with { CommittedToGit = true };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to commit and push file creation for {Path}", path);
+            _logger.LogError(ex, "Failed to commit and push file creation for {Path}. Exception: {Message}", path, ex.Message);
             // Return result but indicate Git commit failed
             return result;
         }
@@ -179,14 +187,37 @@ public class GitMockRepository : FileSystemMockRepositoryBase
         {
             using var repo = new LibGit2Sharp.Repository(_options.ClonePath);
             
-            // Stage all changes (the file and any created/deleted directories)
-            Commands.Stage(repo, "*");
+            // Normalize the file path to be relative to the repository root
+            var normalizedPath = filePath.Replace('\\', '/');
+            while (normalizedPath.StartsWith('/'))
+            {
+                normalizedPath = normalizedPath.Substring(1);
+            }
+            
+            _logger.LogInformation("Staging file: {NormalizedPath} in repo: {RepoPath}", normalizedPath, _options.ClonePath);
+            
+            // Verify the file exists before staging
+            var absolutePath = Path.Combine(_options.ClonePath, normalizedPath);
+            if (!File.Exists(absolutePath))
+            {
+                throw new FileNotFoundException($"Cannot stage file - file not found at: {absolutePath}");
+            }
+            
+            // Stage the specific file using relative path
+            Commands.Stage(repo, normalizedPath);
+            
+            // Log status after staging
+            var status = repo.RetrieveStatus();
+            var stagedCount = status.Staged.Count();
+            var modifiedCount = status.Modified.Count();
+            var addedCount = status.Added.Count();
+            _logger.LogInformation("Git status after staging: Staged={Staged}, Modified={Modified}, Added={Added}, IsDirty={IsDirty}", 
+                stagedCount, modifiedCount, addedCount, status.IsDirty);
             
             // Check if there are any changes to commit
-            var status = repo.RetrieveStatus();
             if (!status.IsDirty)
             {
-                _logger.LogInformation("No changes to commit for {Path}", filePath);
+                _logger.LogWarning("No changes to commit for {Path} - file may already be committed", filePath);
                 return;
             }
             
@@ -194,6 +225,12 @@ public class GitMockRepository : FileSystemMockRepositoryBase
             var signature = new Signature("Mockery", "mockery@localhost", DateTimeOffset.Now);
             repo.Commit(commitMessage, signature, signature);
             _logger.LogInformation("Committed changes: {Message}", commitMessage);
+            
+            // Check if access token is configured for push
+            if (string.IsNullOrEmpty(_options.AccessToken))
+            {
+                _logger.LogWarning("No access token configured - push may fail for private repositories or GitHub");
+            }
             
             // Push to remote
             var remote = repo.Network.Remotes["origin"];
@@ -210,6 +247,7 @@ public class GitMockRepository : FileSystemMockRepositoryBase
             }
             
             var pushRefSpec = $"refs/heads/{_options.Branch}";
+            _logger.LogInformation("Pushing to remote: {Remote}, refspec: {RefSpec}", remote.Url, pushRefSpec);
             repo.Network.Push(remote, pushRefSpec, pushOptions);
             _logger.LogInformation("Pushed changes to {Branch}", _options.Branch);
         });
