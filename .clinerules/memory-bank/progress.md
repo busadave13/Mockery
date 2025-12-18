@@ -67,6 +67,11 @@ The Mockery project is a mature, well-tested mock server ready for production us
 ## Current Work
 
 ### ✅ Recently Completed (2025-12-18)
+- **Fixed serviceaccount.yaml YAML Parse Error** (v3.9)
+  - Fixed invalid template syntax: `{ { .Values.namespace } }` → `{{ .Values.namespace }}`
+  - Spaces inside curly braces broke Helm template parsing
+  - Helm lint and template dry-run both pass successfully
+  - All 91 tests still passing
 - **Helm Chart Templates Updated** (v3.8)
   - Updated `service.yaml` with proper Helm templating
   - Updated `serviceaccount.yaml` with proper Helm templating
