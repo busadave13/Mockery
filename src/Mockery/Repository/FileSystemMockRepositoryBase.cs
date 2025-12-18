@@ -1,4 +1,5 @@
 using Mockery.Configuration;
+using Mockery.Models;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 
@@ -16,6 +17,12 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
         _options = options.Value;
         _logger = logger;
     }
+    
+    /// <summary>
+    /// Indicates whether this repository supports Git operations (commit/push).
+    /// Override in derived classes to return true for Git mode.
+    /// </summary>
+    public virtual bool IsGitMode => false;
 
     public abstract Task InitializeAsync();
 
@@ -163,5 +170,226 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
             _logger.LogError(ex, "Error reading status file {ServiceName}/{FileId}.status.json", serviceName, fileId);
             return null;
         }
+    }
+    
+    // Management API implementations
+    
+    public virtual Task<DirectoryListingResponse> ListDirectoryAsync(string path)
+    {
+        if (!_initialized)
+        {
+            throw new InvalidOperationException("Repository not initialized. Call InitializeAsync first.");
+        }
+
+        try
+        {
+            // Normalize path: empty, "/", or "//" means root
+            var normalizedPath = NormalizePath(path);
+            var fullPath = string.IsNullOrEmpty(normalizedPath) 
+                ? GetMocksRootPath() 
+                : Path.Combine(GetMocksRootPath(), normalizedPath);
+
+            if (!Directory.Exists(fullPath))
+            {
+                _logger.LogWarning("Directory not found: {Path}", fullPath);
+                return Task.FromResult(new DirectoryListingResponse
+                {
+                    Path = string.IsNullOrEmpty(normalizedPath) ? "/" : normalizedPath,
+                    Items = new List<DirectoryItem>()
+                });
+            }
+
+            var items = new List<DirectoryItem>();
+
+            // Get directories
+            foreach (var dir in Directory.GetDirectories(fullPath))
+            {
+                var dirInfo = new DirectoryInfo(dir);
+                items.Add(new DirectoryItem
+                {
+                    Name = dirInfo.Name,
+                    Type = "folder"
+                });
+            }
+
+            // Get files
+            foreach (var file in Directory.GetFiles(fullPath))
+            {
+                var fileInfo = new FileInfo(file);
+                items.Add(new DirectoryItem
+                {
+                    Name = fileInfo.Name,
+                    Type = "file",
+                    Extension = fileInfo.Extension,
+                    Size = fileInfo.Length
+                });
+            }
+
+            _logger.LogInformation("Listed directory {Path}: {Count} items", fullPath, items.Count);
+
+            return Task.FromResult(new DirectoryListingResponse
+            {
+                Path = string.IsNullOrEmpty(normalizedPath) ? "/" : normalizedPath,
+                Items = items
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing directory {Path}", path);
+            throw;
+        }
+    }
+    
+    public virtual async Task<CreateMockResponse> CreateFileAsync(string path, string content)
+    {
+        if (!_initialized)
+        {
+            throw new InvalidOperationException("Repository not initialized. Call InitializeAsync first.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(path, nameof(path));
+        ArgumentNullException.ThrowIfNull(content, nameof(content));
+
+        try
+        {
+            var normalizedPath = NormalizePath(path);
+            if (string.IsNullOrEmpty(normalizedPath))
+            {
+                throw new ArgumentException("Path must include a filename", nameof(path));
+            }
+
+            var fullPath = Path.Combine(GetMocksRootPath(), normalizedPath);
+            var directory = Path.GetDirectoryName(fullPath);
+            var fileName = Path.GetFileName(fullPath);
+
+            if (string.IsNullOrEmpty(fileName))
+            {
+                throw new ArgumentException("Path must include a filename", nameof(path));
+            }
+
+            // Create directory if it doesn't exist
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                _logger.LogInformation("Created directory: {Directory}", directory);
+            }
+
+            // Write file content
+            await File.WriteAllTextAsync(fullPath, content);
+            var fileInfo = new FileInfo(fullPath);
+
+            _logger.LogInformation("Created file: {Path}, Size: {Size} bytes", fullPath, fileInfo.Length);
+
+            // Get the relative directory path (without filename)
+            var relativePath = Path.GetDirectoryName(normalizedPath)?.Replace(Path.DirectorySeparatorChar, '/') ?? string.Empty;
+
+            return new CreateMockResponse
+            {
+                Path = relativePath,
+                FileName = fileName,
+                Size = fileInfo.Length,
+                CommittedToGit = false  // Base class doesn't support Git
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating file {Path}", path);
+            throw;
+        }
+    }
+    
+    public virtual Task<DeleteMockResponse> DeleteFileAsync(string path)
+    {
+        if (!_initialized)
+        {
+            throw new InvalidOperationException("Repository not initialized. Call InitializeAsync first.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(path, nameof(path));
+
+        try
+        {
+            var normalizedPath = NormalizePath(path);
+            if (string.IsNullOrEmpty(normalizedPath))
+            {
+                throw new ArgumentException("Path must include a filename", nameof(path));
+            }
+
+            var fullPath = Path.Combine(GetMocksRootPath(), normalizedPath);
+
+            if (!File.Exists(fullPath))
+            {
+                throw new FileNotFoundException($"File not found: {normalizedPath}", normalizedPath);
+            }
+
+            // Delete the file
+            File.Delete(fullPath);
+            _logger.LogInformation("Deleted file: {Path}", fullPath);
+
+            // Track deleted folders
+            var deletedFolders = new List<string>();
+            var mocksRoot = GetMocksRootPath();
+
+            // Delete empty parent folders up to (but not including) mocks root
+            var parentDir = Path.GetDirectoryName(fullPath);
+            while (!string.IsNullOrEmpty(parentDir) && 
+                   !parentDir.Equals(mocksRoot, StringComparison.OrdinalIgnoreCase) &&
+                   Directory.Exists(parentDir))
+            {
+                var entries = Directory.GetFileSystemEntries(parentDir);
+                if (entries.Length == 0)
+                {
+                    var relativeFolderPath = Path.GetRelativePath(mocksRoot, parentDir).Replace(Path.DirectorySeparatorChar, '/');
+                    Directory.Delete(parentDir);
+                    deletedFolders.Add(relativeFolderPath);
+                    _logger.LogInformation("Deleted empty folder: {Path}", parentDir);
+                    parentDir = Path.GetDirectoryName(parentDir);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return Task.FromResult(new DeleteMockResponse
+            {
+                DeletedFile = normalizedPath,
+                DeletedFolders = deletedFolders,
+                CommittedToGit = false  // Base class doesn't support Git
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting file {Path}", path);
+            throw;
+        }
+    }
+    
+    /// <summary>
+    /// Normalizes a path by removing leading slashes and converting to forward slashes.
+    /// </summary>
+    protected static string NormalizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        // Trim whitespace and normalize slashes
+        var normalized = path.Trim().Replace('\\', '/');
+        
+        // Remove leading slashes (including //)
+        while (normalized.StartsWith('/'))
+        {
+            normalized = normalized.Substring(1);
+        }
+        
+        // Remove trailing slashes
+        while (normalized.EndsWith('/'))
+        {
+            normalized = normalized.Substring(0, normalized.Length - 1);
+        }
+
+        return normalized;
     }
 }

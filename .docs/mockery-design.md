@@ -1,7 +1,7 @@
 # Mockery - Technical Design Document
 
-**Version:** 3.4
-**Date:** 2025-12-14
+**Version:** 3.5
+**Date:** 2025-12-17
 **Author:** System Architecture Team
 **Status:** Living Document
 
@@ -123,7 +123,7 @@ Mockery provides a flexible mock server with dual storage modes:
 1. **Authentication:** No user authentication or authorization
 2. **User Management:** No user profiles, API keys, or account management
 3. **Statistics:** No request counting or usage analytics
-4. **CRUD Operations:** No API endpoints for creating, updating, or deleting mocks
+4. **~~CRUD Operations:~~** *(Implemented in v3.5)* Mock Management API provides list, create, and delete operations
 5. **Environment Routing:** No environment-specific mock selection
 6. **Probe Tracking:** No client application monitoring
 7. **Complex Request Matching:** No endpoint, method, or query parameter matching
@@ -640,7 +640,119 @@ Content-Type: application/json
 }
 ```
 
-#### 5.2.2 Health Check Endpoints
+#### 5.2.2 Mock Management API
+
+The Mock Management API provides CRUD operations for managing mock files. These endpoints allow listing, creating, and deleting mock files programmatically.
+
+**GET /api/mocks**
+- **Auth:** None
+- **Purpose:** List directories and files at a specified path
+- **Headers:**
+  - `X-Mockery-Mock: <path>` (optional, default: root "/" )
+- **Response:** JSON with folders and files at the path
+- **Behavior:**
+  - Empty header or "/" returns root directory listing
+  - Path can include leading slashes (e.g., `//weather/prod`)
+  - Returns folders and files with metadata (name, type, extension, size)
+
+**Example Request:**
+```http
+GET /api/mocks HTTP/1.1
+Host: mockery.example.com
+X-Mockery-Mock: weather/prod
+```
+
+**Example Response:**
+```json
+{
+  "path": "weather/prod",
+  "items": [
+    { "name": "success.json", "type": "file", "extension": ".json", "size": 42 },
+    { "name": "error.json", "type": "file", "extension": ".json", "size": 128 },
+    { "name": "subdir", "type": "folder" }
+  ]
+}
+```
+
+---
+
+**POST /api/mocks**
+- **Auth:** None
+- **Purpose:** Create a new mock file
+- **Headers:**
+  - `X-Mockery-Mock: <path/filename>` (required, e.g., `weather/prod/success.json`)
+- **Body:** File content (raw text/JSON/HTML/etc.)
+- **Response:** 201 Created with file metadata
+- **Behavior:**
+  - Creates directories if they don't exist
+  - Overwrites existing file if present
+  - In Git mode: commits and pushes to configured branch
+
+**Example Request:**
+```http
+POST /api/mocks HTTP/1.1
+Host: mockery.example.com
+X-Mockery-Mock: weather/prod/success.json
+Content-Type: application/json
+
+{"temperature": 72, "conditions": "sunny"}
+```
+
+**Example Response (Local Mode):**
+```json
+{
+  "path": "weather/prod",
+  "fileName": "success.json",
+  "size": 42,
+  "committedToGit": false
+}
+```
+
+**Example Response (Git Mode):**
+```json
+{
+  "path": "weather/prod",
+  "fileName": "success.json",
+  "size": 42,
+  "committedToGit": true
+}
+```
+
+---
+
+**DELETE /api/mocks**
+- **Auth:** None
+- **Purpose:** Delete a mock file
+- **Headers:**
+  - `X-Mockery-Mock: <path/filename>` (required, e.g., `weather/prod/success.json`)
+- **Response:** 200 OK with deletion details
+- **Behavior:**
+  - Deletes the specified file
+  - Deletes empty parent folders up to (but not including) mocks root
+  - In Git mode: commits and pushes to configured branch
+- **Errors:**
+  - `400 Bad Request`: Missing `X-Mockery-Mock` header
+  - `404 Not Found`: File not found
+
+**Example Request:**
+```http
+DELETE /api/mocks HTTP/1.1
+Host: mockery.example.com
+X-Mockery-Mock: weather/prod/success.json
+```
+
+**Example Response:**
+```json
+{
+  "deletedFile": "weather/prod/success.json",
+  "deletedFolders": ["weather/prod", "weather"],
+  "committedToGit": true
+}
+```
+
+---
+
+#### 5.2.3 Health Check Endpoints
 
 Mockery uses ASP.NET Core HealthChecks middleware for container orchestration.
 
@@ -1449,3 +1561,4 @@ src/
 | 3.2 | 2025-11-25 | System Architecture Team | Updated to reflect actual implementation: removed X-Mock-StatusCode header (replaced by .status.json files), added OpenTelemetry observability, updated content types, corrected port to 8080, updated LibGit2Sharp to 0.30.0, added Helm chart documentation, updated configuration structure |
 | 3.3 | 2025-12-13 | System Architecture Team | Removed rate limiting references (not implemented in codebase), updated project structure to match actual implementation |
 | 3.4 | 2025-12-14 | System Architecture Team | Updated Docker Compose port mapping from 3000 to 5500, moved memory bank to .clinerules/memory-bank |
+| 3.5 | 2025-12-17 | System Architecture Team | Added Mock Management API (GET/POST/DELETE /api/mocks) for listing, creating, and deleting mock files. Git mode auto-commits and pushes changes. Total tests: 89. |

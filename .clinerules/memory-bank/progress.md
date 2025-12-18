@@ -22,6 +22,13 @@ The Mockery project is a mature, well-tested mock server ready for production us
 - [x] Strategy pattern for repository abstraction
 - [x] Background refresh service for Git mode
 
+### ✅ Mock Management API (v3.5)
+- [x] GET /api/mocks - List directory contents
+- [x] POST /api/mocks - Create mock files
+- [x] DELETE /api/mocks - Delete mock files
+- [x] Auto-commit and push in Git mode
+- [x] Empty folder cleanup on delete
+
 ### ✅ Observability
 - [x] OpenTelemetry integration (logs, metrics, traces)
 - [x] Prometheus metrics endpoint (`/metrics`)
@@ -34,9 +41,9 @@ The Mockery project is a mature, well-tested mock server ready for production us
 - [x] Startup probe (`/health/startup`)
 
 ### ✅ Testing
-- [x] 44 comprehensive unit tests
-- [x] Controller tests
-- [x] Service tests
+- [x] 89 comprehensive unit tests
+- [x] Controller tests (MockController, MocksController)
+- [x] Service tests (MockService, MocksManagementService)
 - [x] Repository tests (both Git and Local)
 - [x] All tests passing
 
@@ -49,15 +56,18 @@ The Mockery project is a mature, well-tested mock server ready for production us
 ### ✅ Documentation
 - [x] README.md with usage instructions
 - [x] Technical design document (`.docs/mockery-design.md`)
-- [x] Memory bank initialization
+- [x] Memory bank documentation
 - [x] Sample mock files included
 
 ---
 
 ## Current Work
 
-### 🔄 In Progress
-- Memory bank initialization (this task)
+### 🔄 Recently Completed (2025-12-17)
+- Added Mock Management API (GET/POST/DELETE /api/mocks)
+- Created 23 new unit tests
+- Updated design document to v3.5
+- Updated memory bank
 
 ### 📋 Backlog
 - No active backlog items
@@ -74,8 +84,8 @@ None currently tracked.
 
 ```
 Test Run Successful.
-Total tests: 44
-     Passed: 44
+Total tests: 89
+     Passed: 89
      Failed: 0
      Skipped: 0
 ```
@@ -84,7 +94,9 @@ Total tests: 44
 | Component | Tests | Status |
 |-----------|-------|--------|
 | MockController | Multiple | ✅ Pass |
+| MocksController | 11 | ✅ Pass |
 | MockService | Multiple | ✅ Pass |
+| MocksManagementService | 12 | ✅ Pass |
 | ContentTypeResolver | Multiple | ✅ Pass |
 | GitMockRepository | Multiple | ✅ Pass |
 | LocalFileMockRepository | Multiple | ✅ Pass |
@@ -96,6 +108,7 @@ Total tests: 44
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v3.5 | 2025-12-17 | Added Mock Management API (GET/POST/DELETE /api/mocks). Total tests: 89. |
 | v3.4 | 2025-12-14 | Docker Compose port 3000→5500, memory bank moved to `.clinerules/memory-bank` |
 | v3.3 | 2025-12-13 | Removed rate limiting references, updated project structure |
 | v3.2 | 2025-11-25 | Added OpenTelemetry, `.status.json` files, updated port to 8080 |
@@ -108,8 +121,8 @@ Total tests: 44
 
 | Metric | Value |
 |--------|-------|
-| **Lines of Code** | ~2,000 (estimated) |
-| **Test Count** | 44 |
+| **Lines of Code** | ~2,500 (estimated) |
+| **Test Count** | 89 |
 | **Test Coverage** | High (all major components) |
 | **Dependencies** | 12 NuGet packages |
 | **Container Size** | ~100MB (estimated) |
@@ -141,26 +154,37 @@ helm install mockery oci://ghcr.io/busadave13/helm/mockery --namespace dev
 
 ---
 
-## Next Steps
+## API Endpoints Summary
 
-1. ✅ Complete memory bank initialization
-2. Continue with any future development tasks as they arise
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/mock` | GET | Retrieve mock content |
+| `/api/mocks` | GET | List directory contents |
+| `/api/mocks` | POST | Create mock file |
+| `/api/mocks` | DELETE | Delete mock file |
+| `/health/live` | GET | Liveness probe |
+| `/health/ready` | GET | Readiness probe |
+| `/health/startup` | GET | Startup probe |
+| `/metrics` | GET | Prometheus metrics |
 
 ---
 
 ## Session Notes
+
+### 2025-12-17
+- Implemented Mock Management API with 3 new endpoints
+- Created MocksController, MocksManagementService, and response models
+- Added Git commit/push functionality for create and delete operations
+- Created 23 new unit tests (11 for controller, 12 for service)
+- Updated design document to v3.5
+- Updated memory bank documentation
 
 ### 2025-12-14 (Session 2)
 - Updated Docker Compose port mapping from 3000 to 5500
 - Moved memory bank from `.memory-bank` to `.clinerules/memory-bank`
 - Updated README.md with new port 5500
 - Updated design document to v3.4
-- Created GitHub issue #51: "Support different mock responses for different services in a single request"
+- Created GitHub issue #51
 
 ### 2025-12-14 (Session 1)
-- Initialized memory bank with 5 core documents:
-  - `productContext.md` - Product purpose and features
-  - `activeContext.md` - Current state and work areas
-  - `systemPatterns.md` - Architecture and design patterns
-  - `decisionLog.md` - Key technical decisions
-  - `progress.md` - This file, tracking progress
+- Initialized memory bank with 5 core documents

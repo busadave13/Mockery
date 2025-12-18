@@ -1,5 +1,6 @@
 using LibGit2Sharp;
 using Mockery.Configuration;
+using Mockery.Models;
 using Microsoft.Extensions.Options;
 
 namespace Mockery.Repository;
@@ -10,6 +11,11 @@ public class GitMockRepository : FileSystemMockRepositoryBase
         : base(options, logger)
     {
     }
+    
+    /// <summary>
+    /// Git mode supports commit/push operations.
+    /// </summary>
+    public override bool IsGitMode => true;
 
     public override async Task InitializeAsync()
     {
@@ -125,5 +131,87 @@ public class GitMockRepository : FileSystemMockRepositoryBase
             _logger.LogError(ex, "Failed to refresh Git repository");
             // Don't throw - we can continue serving from existing files
         }
+    }
+    
+    public override async Task<CreateMockResponse> CreateFileAsync(string path, string content)
+    {
+        // First, call base implementation to create the file
+        var result = await base.CreateFileAsync(path, content);
+        
+        // Then commit and push to Git
+        try
+        {
+            await CommitAndPushAsync($"Add {result.FileName}", path);
+            
+            return result with { CommittedToGit = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to commit and push file creation for {Path}", path);
+            // Return result but indicate Git commit failed
+            return result;
+        }
+    }
+    
+    public override async Task<DeleteMockResponse> DeleteFileAsync(string path)
+    {
+        // First, call base implementation to delete the file
+        var result = await base.DeleteFileAsync(path);
+        
+        // Then commit and push to Git
+        try
+        {
+            await CommitAndPushAsync($"Delete {Path.GetFileName(path)}", path);
+            
+            return result with { CommittedToGit = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to commit and push file deletion for {Path}", path);
+            // Return result but indicate Git commit failed
+            return result;
+        }
+    }
+    
+    private async Task CommitAndPushAsync(string commitMessage, string filePath)
+    {
+        await Task.Run(() =>
+        {
+            using var repo = new LibGit2Sharp.Repository(_options.ClonePath);
+            
+            // Stage all changes (the file and any created/deleted directories)
+            Commands.Stage(repo, "*");
+            
+            // Check if there are any changes to commit
+            var status = repo.RetrieveStatus();
+            if (!status.IsDirty)
+            {
+                _logger.LogInformation("No changes to commit for {Path}", filePath);
+                return;
+            }
+            
+            // Create commit
+            var signature = new Signature("Mockery", "mockery@localhost", DateTimeOffset.Now);
+            repo.Commit(commitMessage, signature, signature);
+            _logger.LogInformation("Committed changes: {Message}", commitMessage);
+            
+            // Push to remote
+            var remote = repo.Network.Remotes["origin"];
+            var pushOptions = new PushOptions();
+            
+            if (!string.IsNullOrEmpty(_options.AccessToken))
+            {
+                pushOptions.CredentialsProvider = (url, user, cred) =>
+                    new UsernamePasswordCredentials
+                    {
+                        Username = _options.AccessToken,
+                        Password = string.Empty
+                    };
+            }
+            
+            var pushRefSpec = $"refs/heads/{_options.Branch}";
+            repo.Network.Push(remote, pushRefSpec, pushOptions);
+            _logger.LogInformation("Pushed changes to {Branch}", _options.Branch);
+        });
     }
 }
