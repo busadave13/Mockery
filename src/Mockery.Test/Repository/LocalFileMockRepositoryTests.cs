@@ -397,4 +397,119 @@ public class LocalFileMockRepositoryTests : IDisposable
         statusResult.Should().NotBeNull();
         statusResult.Value.Content.Should().Be("{\"status\":\"content\"}");
     }
+
+    #region ListDirectoryAsync Tests
+
+    [Fact]
+    public async Task ListDirectoryAsync_WhenRootHasHiddenFolder_ExcludesHiddenFolder()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var mocksPath = Path.Combine(_testRepoPath, "mocks");
+        
+        // Create a regular folder
+        Directory.CreateDirectory(Path.Combine(mocksPath, "FooBar"));
+        
+        // Create a hidden folder (starting with .)
+        Directory.CreateDirectory(Path.Combine(mocksPath, ".git"));
+
+        // Act
+        var result = await repository.ListDirectoryAsync("");
+
+        // Assert
+        result.Items.Should().HaveCount(1);
+        result.Items.Should().Contain(i => i.Name == "FooBar" && i.Type == "folder");
+        result.Items.Should().NotContain(i => i.Name == ".git");
+    }
+
+    [Fact]
+    public async Task ListDirectoryAsync_WhenDirectoryHasHiddenFiles_ExcludesHiddenFiles()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "TestService");
+        Directory.CreateDirectory(servicePath);
+        
+        // Create a regular file
+        await File.WriteAllTextAsync(Path.Combine(servicePath, "test.json"), "{}");
+        
+        // Create a hidden file (starting with .)
+        await File.WriteAllTextAsync(Path.Combine(servicePath, ".gitignore"), "*.tmp");
+
+        // Act
+        var result = await repository.ListDirectoryAsync("TestService");
+
+        // Assert
+        result.Items.Should().HaveCount(1);
+        result.Items.Should().Contain(i => i.Name == "test.json" && i.Type == "file");
+        result.Items.Should().NotContain(i => i.Name == ".gitignore");
+    }
+
+    [Fact]
+    public async Task ListDirectoryAsync_WhenMixedHiddenAndVisibleItems_ExcludesAllHiddenItems()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var mocksPath = Path.Combine(_testRepoPath, "mocks");
+        
+        // Create regular folders
+        Directory.CreateDirectory(Path.Combine(mocksPath, "Service1"));
+        Directory.CreateDirectory(Path.Combine(mocksPath, "Service2"));
+        
+        // Create hidden folders
+        Directory.CreateDirectory(Path.Combine(mocksPath, ".git"));
+        Directory.CreateDirectory(Path.Combine(mocksPath, ".vscode"));
+        
+        // Create regular files
+        await File.WriteAllTextAsync(Path.Combine(mocksPath, "readme.md"), "# Test");
+        
+        // Create hidden files
+        await File.WriteAllTextAsync(Path.Combine(mocksPath, ".gitignore"), "*.tmp");
+        await File.WriteAllTextAsync(Path.Combine(mocksPath, ".env"), "SECRET=value");
+
+        // Act
+        var result = await repository.ListDirectoryAsync("");
+
+        // Assert
+        result.Items.Should().HaveCount(3);
+        result.Items.Should().Contain(i => i.Name == "Service1" && i.Type == "folder");
+        result.Items.Should().Contain(i => i.Name == "Service2" && i.Type == "folder");
+        result.Items.Should().Contain(i => i.Name == "readme.md" && i.Type == "file");
+        
+        // Should NOT contain hidden items
+        result.Items.Should().NotContain(i => i.Name.StartsWith('.'));
+    }
+
+    [Fact]
+    public async Task ListDirectoryAsync_WhenOnlyHiddenItems_ReturnsEmptyList()
+    {
+        // Arrange
+        var optionsMock = Options.Create(_options);
+        var repository = new LocalFileMockRepository(optionsMock, _loggerMock.Object);
+        await repository.InitializeAsync();
+
+        var servicePath = Path.Combine(_testRepoPath, "mocks", "HiddenOnly");
+        Directory.CreateDirectory(servicePath);
+        
+        // Create only hidden items
+        Directory.CreateDirectory(Path.Combine(servicePath, ".hidden"));
+        await File.WriteAllTextAsync(Path.Combine(servicePath, ".gitkeep"), "");
+
+        // Act
+        var result = await repository.ListDirectoryAsync("HiddenOnly");
+
+        // Assert
+        result.Items.Should().BeEmpty();
+    }
+
+    #endregion
 }
