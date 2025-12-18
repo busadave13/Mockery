@@ -6,11 +6,12 @@ services:
     restart: unless-stopped
     ports:
       - "5500:8080"
-    volumes:
-      - C:\Users\daveh\source\repos\Mocks:/app/mocks
     environment:
-      - MockRepository__Type=Local
-      - MockRepository__LocalPath=/app
+      # Production is the default, which uses Git mode from appsettings.Production.json
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Git access token from host environment variable
+      - MockRepository__Git__AccessToken=${MOCKERY_GIT_TOKEN}
+      # OpenTelemetry configuration
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_SERVICE_NAME=Mockery

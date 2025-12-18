@@ -1,7 +1,7 @@
 # Mockery - Technical Design Document
 
-**Version:** 3.5
-**Date:** 2025-12-17
+**Version:** 3.6
+**Date:** 2025-12-18
 **Author:** System Architecture Team
 **Status:** Living Document
 
@@ -682,11 +682,16 @@ X-Mockery-Mock: weather/prod
 - **Headers:**
   - `X-Mockery-Mock: <path/filename>` (required, e.g., `weather/prod/success.json`)
 - **Body:** File content (raw text/JSON/HTML/etc.)
-- **Response:** 201 Created with file metadata
+- **Response:** 
+  - `201 Created` with file metadata on success
+  - `409 Conflict` if file already exists (idempotency check)
 - **Behavior:**
   - Creates directories if they don't exist
-  - Overwrites existing file if present
+  - **Idempotent:** Returns 409 Conflict if file already exists
   - In Git mode: commits and pushes to configured branch
+- **Errors:**
+  - `400 Bad Request`: Missing `X-Mockery-Mock` header or empty body
+  - `409 Conflict`: File already exists at specified path
 
 **Example Request:**
 ```http
@@ -715,6 +720,16 @@ Content-Type: application/json
   "fileName": "success.json",
   "size": 42,
   "committedToGit": true
+}
+```
+
+**Example Error Response (File Exists):**
+```http
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+
+{
+  "error": "File already exists: weather/prod/success.json"
 }
 ```
 
@@ -1405,6 +1420,7 @@ persistence:
       "RepositoryUrl": "https://github.com/org/mocks.git",
       "Branch": "main",
       "ClonePath": "/app/mocks",
+      "AccessToken": "",
       "AutoRefresh": {
         "Enabled": true,
         "IntervalMinutes": 5
@@ -1413,6 +1429,33 @@ persistence:
   }
 }
 ```
+
+**Git Access Token Configuration:**
+
+For Git push operations (POST/DELETE /api/mocks), an access token is required. Configure it using one of these methods:
+
+1. **Environment Variable (Recommended for Docker):**
+   ```bash
+   export MOCKERY_GIT_TOKEN=ghp_your_github_personal_access_token
+   ```
+
+2. **Docker Compose `.env` file:**
+   Create a `.env` file in the project root:
+   ```
+   MOCKERY_GIT_TOKEN=ghp_your_github_personal_access_token
+   ```
+
+3. **Kubernetes Secret:**
+   ```yaml
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: mockery-git-secret
+   stringData:
+     git-access-token: ghp_your_github_personal_access_token
+   ```
+
+**Note:** The token requires `repo` scope for private repositories or `public_repo` scope for public repositories.
 
 ---
 
@@ -1562,3 +1605,4 @@ src/
 | 3.3 | 2025-12-13 | System Architecture Team | Removed rate limiting references (not implemented in codebase), updated project structure to match actual implementation |
 | 3.4 | 2025-12-14 | System Architecture Team | Updated Docker Compose port mapping from 3000 to 5500, moved memory bank to .clinerules/memory-bank |
 | 3.5 | 2025-12-17 | System Architecture Team | Added Mock Management API (GET/POST/DELETE /api/mocks) for listing, creating, and deleting mock files. Git mode auto-commits and pushes changes. Total tests: 89. |
+| 3.6 | 2025-12-18 | System Architecture Team | Added idempotency check for POST /api/mocks (returns 409 Conflict if file exists). Added Git access token configuration documentation. Fixed Git staging path for commit/push. Total tests: 91. |

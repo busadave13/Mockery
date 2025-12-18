@@ -274,6 +274,12 @@ public abstract class FileSystemMockRepositoryBase : IGitMockRepository
                 _logger.LogInformation("Created directory: {Directory}", directory);
             }
 
+            // Check if file already exists (idempotency check)
+            if (File.Exists(fullPath))
+            {
+                throw new InvalidOperationException($"File already exists: {normalizedPath}");
+            }
+
             // Write file content
             await File.WriteAllTextAsync(fullPath, content);
             var fileInfo = new FileInfo(fullPath);
