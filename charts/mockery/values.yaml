@@ -38,12 +38,18 @@ config:
     otlpApiKey: "aspire"
 
 # Secrets configuration for Git repository access
+# The deployment always references a secret named "{name}-secrets" (e.g., "mockery-secrets")
+# with a key "git-access-token" containing the GitHub Personal Access Token.
+# 
+# You can either:
+# 1. Provide gitAccessToken here (Helm will create the secret)
+# 2. Create the secret externally (via SealedSecrets, External Secrets, kubectl, etc.)
+#
+# For push operations (POST/DELETE /api/mocks), a valid token with 'repo' scope is required.
 secrets:
-  # Git access token for private repositories (optional - leave empty for public repositories)
-  # For private repositories, provide a GitHub Personal Access Token (starts with 'ghp_')
-  # The token should have 'repo' scope for private repository access
-  # This value will be stored in a Kubernetes Secret and injected as an environment variable
-  # IMPORTANT: Never commit actual tokens to version control!
+  # Git access token for private repositories
+  # For GitHub: Create a Personal Access Token with 'repo' scope (starts with 'ghp_')
+  # IMPORTANT: Never commit actual tokens to version control! Use --set or external secret management.
   gitAccessToken: ""
 
 # Persistence for Git repository storage
