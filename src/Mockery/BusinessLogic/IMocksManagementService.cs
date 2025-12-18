@@ -1,33 +1,21 @@
 using Mockery.Models;
 
-namespace Mockery.Repository;
+namespace Mockery.BusinessLogic;
 
-public interface IGitMockRepository
+/// <summary>
+/// Service for managing mock files (list, create, delete).
+/// </summary>
+public interface IMocksManagementService
 {
-    Task InitializeAsync();
-    Task<(string Content, string Extension)?> FindMockFileAsync(string serviceName, string fileId);
-    Task<Dictionary<string, string>?> FindHeadersFileAsync(string serviceName, string fileId);
-    
-    /// <summary>
-    /// Finds a status file (e.g., 504.status.json) for the given service and file ID.
-    /// Returns the status code from the filename and optional content from the file.
-    /// </summary>
-    Task<(int StatusCode, string? Content)?> FindStatusFileAsync(string serviceName, string fileId);
-    
-    Task RefreshAsync();
-    
-    // Management API methods
-    
     /// <summary>
     /// Lists the contents of a directory at the specified path.
     /// </summary>
     /// <param name="path">The relative path within the mocks directory. Use empty string or "/" for root.</param>
-    /// <returns>Directory listing result containing folders and files.</returns>
+    /// <returns>Directory listing containing folders and files.</returns>
     Task<DirectoryListingResponse> ListDirectoryAsync(string path);
     
     /// <summary>
     /// Creates a new mock file at the specified path with the given content.
-    /// For Git mode, this will also commit and push the changes.
     /// </summary>
     /// <param name="path">The full path including filename (e.g., "weather/prod/success.json").</param>
     /// <param name="content">The content to write to the file.</param>
@@ -36,15 +24,8 @@ public interface IGitMockRepository
     
     /// <summary>
     /// Deletes a mock file at the specified path.
-    /// If the folder becomes empty, it will also be deleted.
-    /// For Git mode, this will also commit and push the changes.
     /// </summary>
     /// <param name="path">The full path including filename (e.g., "weather/prod/success.json").</param>
     /// <returns>Result containing deleted file/folder info and whether it was committed to Git.</returns>
     Task<DeleteMockResponse> DeleteFileAsync(string path);
-    
-    /// <summary>
-    /// Indicates whether this repository supports Git operations (commit/push).
-    /// </summary>
-    bool IsGitMode { get; }
 }

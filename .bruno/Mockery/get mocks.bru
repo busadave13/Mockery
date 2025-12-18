@@ -1,0 +1,15 @@
+meta {
+  name: get mocks
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://{{host}}/api/mocks
+  body: none
+  auth: none
+}
+
+headers {
+  ~X-Mockery-Mock: 
+}

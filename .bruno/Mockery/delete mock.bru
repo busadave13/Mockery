@@ -1,0 +1,21 @@
+meta {
+  name: delete mock
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://{{host}}/api/mocks
+  body: json
+  auth: none
+}
+
+headers {
+  X-Mockery-Mock: Products
+}
+
+body:json {
+  {
+    "name": "foo"
+  }
+}

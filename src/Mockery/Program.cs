@@ -55,6 +55,7 @@ else
     builder.Services.AddHostedService<GitRepositoryRefreshService>();
 }
 builder.Services.AddScoped<IMockService, MockService>();
+builder.Services.AddScoped<IMocksManagementService, MocksManagementService>();
 builder.Services.AddSingleton<IContentTypeResolver, ContentTypeResolver>();
 builder.Services.AddSingleton<MockeryMetrics>();
 

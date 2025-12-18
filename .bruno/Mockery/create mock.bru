@@ -1,0 +1,21 @@
+meta {
+  name: create mock
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://{{host}}/api/mocks
+  body: json
+  auth: none
+}
+
+headers {
+  X-Mockery-Mock: foo/foobar.json
+}
+
+body:json {
+  {
+    "name": "foo"
+  }
+}
