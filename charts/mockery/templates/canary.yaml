@@ -1,0 +1,52 @@
+{{- if .Values.canary.enabled -}}
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: {{ .Values.name }}-canary
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}
+    release: {{ .Release.Name }}
+spec:
+  provider: {{ .Values.canary.provider }}
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.name }}
+  progressDeadlineSeconds: {{ .Values.canary.progressDeadlineSeconds }}
+  service:
+    port: {{ .Values.service.port }}
+    targetPort: {{ .Values.service.targetPort }}
+    portName: http
+    trafficPolicy:
+      tls:
+        mode: {{ .Values.canary.tlsMode }}
+  analysis:
+    interval: {{ .Values.canary.analysis.interval }}
+    threshold: {{ .Values.canary.analysis.threshold }}
+    maxWeight: {{ .Values.canary.analysis.maxWeight }}
+    stepWeight: {{ .Values.canary.analysis.stepWeight }}
+    metrics:
+      - name: success-rate
+        templateRef:
+          name: {{ .Values.canary.metricsTemplates.successRate }}
+          namespace: {{ .Values.canary.metricsTemplates.namespace }}
+        thresholdRange:
+          min: {{ .Values.canary.analysis.successRateMin }}
+        interval: {{ .Values.canary.analysis.interval }}
+      - name: latency-p99
+        templateRef:
+          name: {{ .Values.canary.metricsTemplates.latency }}
+          namespace: {{ .Values.canary.metricsTemplates.namespace }}
+        thresholdRange:
+          max: {{ .Values.canary.analysis.latencyP99Max }}
+        interval: {{ .Values.canary.analysis.interval }}
+    {{- if .Values.canary.loadTest.enabled }}
+    webhooks:
+      - name: load-test
+        url: {{ .Values.canary.loadTest.url }}
+        timeout: {{ .Values.canary.loadTest.timeout }}
+        metadata:
+          cmd: "hey -z 1m -q 10 -c 2 http://{{ .Values.name }}-canary.{{ .Values.namespace }}/"
+    {{- end }}
+{{- end }}
