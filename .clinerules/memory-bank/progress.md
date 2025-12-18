@@ -67,6 +67,15 @@ The Mockery project is a mature, well-tested mock server ready for production us
 ## Current Work
 
 ### ✅ Recently Completed (2025-12-18)
+- **Helm Chart Templates Updated** (v3.8)
+  - Updated `service.yaml` with proper Helm templating
+  - Updated `serviceaccount.yaml` with proper Helm templating
+  - Updated `httproute.yaml` with proper Helm templating and conditional rendering
+  - Updated `canary.yaml` with proper Helm templating and conditional rendering
+  - Added `httpRoute` and `canary` sections to `values.yaml` with full configurability
+  - All templates now reference values instead of hardcoded values
+  - Helm lint passed successfully
+  - All 91 tests still passing
 - Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()` since the file no longer exists after deletion (v3.7)
 - Fixed POST /api/mocks Git commit/push not working (staging with explicit file path instead of wildcard)
 - Added idempotency check - POST /api/mocks now returns 409 Conflict if file already exists
