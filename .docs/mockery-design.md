@@ -1,7 +1,7 @@
 # Mockery - Technical Design Document
 
-**Version:** 3.8
-**Date:** 2025-12-18
+**Version:** 3.9
+**Date:** 2025-12-20
 **Author:** System Architecture Team
 **Status:** Living Document
 
@@ -1363,6 +1363,14 @@ ENTRYPOINT ["dotnet", "Mockery.dll"]
 
 **Port:** Application runs on port 8080
 
+**Multi-Architecture Support:**
+The CI/CD pipeline builds Docker images for both `linux/amd64` (Windows/Intel) and `linux/arm64` (Apple Silicon Mac). This enables running Mockery on:
+- Windows development machines (amd64)
+- Apple Silicon Macs (M1/M2/M3/M4) (arm64)
+- Cloud Kubernetes clusters (typically amd64)
+
+The multi-arch manifest allows Docker to automatically pull the correct architecture variant.
+
 ### 11.2 Helm Chart Deployment
 
 **Chart Location:** `charts/mockery/`
@@ -1609,3 +1617,4 @@ src/
 | 3.6 | 2025-12-18 | System Architecture Team | Added idempotency check for POST /api/mocks (returns 409 Conflict if file exists). Added Git access token configuration documentation. Fixed Git staging path for commit/push. Total tests: 91. |
 | 3.7 | 2025-12-18 | System Architecture Team | Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()` since the file no longer exists after deletion. Total tests: 91. |
 | 3.8 | 2025-12-18 | System Architecture Team | GET /api/mocks now filters out hidden files and folders (items starting with `.` like `.git`, `.gitignore`). Total tests: 95. |
+| 3.9 | 2025-12-20 | System Architecture Team | Added multi-architecture Docker builds (linux/amd64 + linux/arm64) for cross-platform support on Windows and Apple Silicon Macs. |

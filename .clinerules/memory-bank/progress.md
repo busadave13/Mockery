@@ -66,7 +66,15 @@ The Mockery project is a mature, well-tested mock server ready for production us
 
 ## Current Work
 
-### ✅ Recently Completed (2025-12-18)
+### ✅ Recently Completed (2025-12-20)
+- **Added multi-architecture Docker builds** (v3.9 - CI/CD)
+  - Added QEMU setup step for cross-platform emulation
+  - Added `platforms: linux/amd64,linux/arm64` to Docker build
+  - Enables Mockery to run on both Windows (amd64) and Apple Silicon Macs (arm64)
+  - Fixes ImagePull errors on M1/M2/M3/M4 Macs running local Kubernetes clusters
+  - Updated design document to v3.9
+
+### ✅ Previously Completed (2025-12-18)
 - **GET /api/mocks now filters hidden files/folders** (v3.8 - API)
   - Hidden files and folders (starting with `.`) are now excluded from directory listings
   - Filters out `.git`, `.gitignore`, `.env`, `.vscode`, etc.
