@@ -75,7 +75,8 @@ public static class OpenTelemetryExtensions
         // Configure Metrics
         otel.WithMetrics(metrics =>
         {
-            // Add application-specific meter
+            // Add application-specific meter (custom Mockery metrics)
+            metrics.AddMeter("Mockery");
             metrics.AddMeter(serviceName);
 
             // Add built-in instrumentations

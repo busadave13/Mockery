@@ -46,6 +46,9 @@ spec:
                   name: {{ .Values.name }}-secrets
                   key: git-access-token
                   optional: true
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.name }}-config
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

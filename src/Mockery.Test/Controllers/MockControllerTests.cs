@@ -3,7 +3,9 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Mockery.BusinessLogic;
+using Mockery.Configuration;
 using Mockery.Controllers;
 using Mockery.Models;
 using Mockery.Services;
@@ -24,9 +26,18 @@ public class MockControllerTests
         _mockService = new Mock<IMockService>();
         _mockLogger = new Mock<ILogger<MockController>>();
 
-        // Create a real MockeryMetrics with a test meter factory
+        // Create a real MockeryMetrics with a test meter factory and mocked dependencies
         var meterFactory = new TestMeterFactory();
-        _metrics = new MockeryMetrics(meterFactory);
+        var throttlingOptions = new Mock<IOptionsMonitor<ThrottlingOptions>>();
+        throttlingOptions.Setup(x => x.CurrentValue).Returns(new ThrottlingOptions
+        {
+            Enabled = true,
+            RequestsPerSecond = 100,
+            BurstSize = 50
+        });
+        var throttlingService = new Mock<IThrottlingService>();
+        throttlingService.Setup(x => x.AvailableTokens).Returns(50);
+        _metrics = new MockeryMetrics(meterFactory, throttlingOptions.Object, throttlingService.Object);
 
         _controller = new MockController(_mockService.Object, _mockLogger.Object, _metrics);
         _controller.ControllerContext = new ControllerContext
