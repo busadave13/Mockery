@@ -43,7 +43,7 @@ The Mockery project is a mature, well-tested mock server ready for production us
 - [x] Startup probe (`/health/startup`)
 
 ### ✅ Testing
-- [x] 91 comprehensive unit tests
+- [x] 95 comprehensive unit tests
 - [x] Controller tests (MockController, MocksController)
 - [x] Service tests (MockService, MocksManagementService)
 - [x] Repository tests (both Git and Local)
@@ -58,7 +58,7 @@ The Mockery project is a mature, well-tested mock server ready for production us
 
 ### ✅ Documentation
 - [x] README.md with usage instructions
-- [x] Technical design document (`.docs/mockery-design.md`) v3.6
+- [x] Technical design document (`docs/mockery-design.md`)
 - [x] Memory bank documentation
 - [x] Sample mock files included
 
@@ -66,42 +66,20 @@ The Mockery project is a mature, well-tested mock server ready for production us
 
 ## Current Work
 
-### ✅ Recently Completed (2025-12-20)
-- **Added multi-architecture Docker builds** (v3.9 - CI/CD)
-  - Added QEMU setup step for cross-platform emulation
-  - Added `platforms: linux/amd64,linux/arm64` to Docker build
-  - Enables Mockery to run on both Windows (amd64) and Apple Silicon Macs (arm64)
-  - Fixes ImagePull errors on M1/M2/M3/M4 Macs running local Kubernetes clusters
-  - Updated design document to v3.9
-
-### ✅ Previously Completed (2025-12-18)
-- **GET /api/mocks now filters hidden files/folders** (v3.8 - API)
-  - Hidden files and folders (starting with `.`) are now excluded from directory listings
-  - Filters out `.git`, `.gitignore`, `.env`, `.vscode`, etc.
-  - Added 4 new unit tests for hidden file filtering
+### ✅ Recently Completed (2026-01-08)
+- **Removed throttling middleware and all dependencies** (v4.0)
+  - Deleted: ThrottlingMiddleware, ThrottlingService, IThrottlingService, ThrottlingOptions, ThrottlingExtensions
+  - Deleted: ThrottlingMiddlewareTests, ThrottlingServiceTests
+  - Deleted: observability folder (Grafana dashboards, Prometheus configs)
+  - Deleted: docker-compose.observability.yml, docker-compose.observability.docker.yml
+  - Updated: MockeryMetrics.cs, Program.cs, appsettings files, Helm chart configs
+  - Updated: MockControllerTests.cs to remove throttling dependencies
+  - Updated: docs/mockery-design.md to remove throttling references
   - All 95 tests passing
-- **Fixed serviceaccount.yaml YAML Parse Error** (v3.9 - Helm)
-  - Fixed invalid template syntax: `{ { .Values.namespace } }` → `{{ .Values.namespace }}`
-  - Spaces inside curly braces broke Helm template parsing
-  - Helm lint and template dry-run both pass successfully
-  - All 91 tests still passing
-- **Helm Chart Templates Updated** (v3.8)
-  - Updated `service.yaml` with proper Helm templating
-  - Updated `serviceaccount.yaml` with proper Helm templating
-  - Updated `httproute.yaml` with proper Helm templating and conditional rendering
-  - Updated `canary.yaml` with proper Helm templating and conditional rendering
-  - Added `httpRoute` and `canary` sections to `values.yaml` with full configurability
-  - All templates now reference values instead of hardcoded values
-  - Helm lint passed successfully
-  - All 91 tests still passing
-- Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()` since the file no longer exists after deletion (v3.7)
-- Fixed POST /api/mocks Git commit/push not working (staging with explicit file path instead of wildcard)
-- Added idempotency check - POST /api/mocks now returns 409 Conflict if file already exists
-- Added 2 new unit tests for idempotency behavior
-- Added Git access token configuration documentation
-- Created `.env.example` template file
-- Updated design document to v3.7
-- Total tests: 91
+- **Simplified k6 load testing** (v4.0)
+  - Deleted: k6/config.js, k6/scripts/full-suite.js, k6/scripts/mocks-list.js, k6/scripts/mock-load.js
+  - Created: k6/scripts/load-test.js with simple RPS and DURATION parameters
+  - Updated: k6/README.md with simplified usage instructions
 
 ### 📋 Backlog
 - No active backlog items
@@ -142,14 +120,15 @@ Total tests: 95
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v3.7 | 2025-12-18 | Fixed DELETE /api/mocks Git staging - uses `Commands.Remove()` for deletions. Total tests: 91. |
+| v4.0 | 2026-01-08 | Removed throttling middleware, simplified k6 load testing. Total tests: 95. |
+| v3.9 | 2025-12-20 | Multi-architecture Docker builds (amd64/arm64). |
+| v3.8 | 2025-12-18 | GET /api/mocks filters hidden files, Helm chart template fixes. |
+| v3.7 | 2025-12-18 | Fixed DELETE /api/mocks Git staging. Total tests: 91. |
 | v3.6 | 2025-12-18 | Added idempotency check (409 Conflict), Git token config docs. Total tests: 91. |
 | v3.5 | 2025-12-17 | Added Mock Management API (GET/POST/DELETE /api/mocks). Total tests: 89. |
-| v3.4 | 2025-12-14 | Docker Compose port 3000→5500, memory bank moved to `.clinerules/memory-bank` |
+| v3.4 | 2025-12-14 | Docker Compose port 3000→5500, memory bank moved to `memory-bank` |
 | v3.3 | 2025-12-13 | Removed rate limiting references, updated project structure |
 | v3.2 | 2025-11-25 | Added OpenTelemetry, `.status.json` files, updated port to 8080 |
-| v3.1 | 2025-11-25 | Documentation updates |
-| v3.0 | 2025-11-16 | Dual-mode repository support, Strategy pattern |
 
 ---
 
@@ -186,6 +165,15 @@ docker build -t mockery:latest .
 ### Deploy to Kubernetes
 ```bash
 helm install mockery oci://ghcr.io/busadave13/helm/mockery --namespace dev
+```
+
+### Run Load Test
+```bash
+# Default: 10 RPS for 30 seconds
+k6 run k6/scripts/load-test.js
+
+# Custom RPS and duration
+k6 run -e RPS=100 -e DURATION=60s k6/scripts/load-test.js
 ```
 
 ---
@@ -226,37 +214,11 @@ For Git push operations, set `MOCKERY_GIT_TOKEN`:
 
 ## Session Notes
 
-### 2025-12-18 (Session 2)
-- Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()`
-- Root cause: After `base.DeleteFileAsync()` deletes the file, `Commands.Stage()` fails because the file no longer exists
-- Solution: Use `Commands.Remove(repo, normalizedPath, removeFromWorkingDirectory: false)` for delete operations
-- Updated design document to v3.7
-- All 91 tests passing
-
-### 2025-12-18 (Session 1)
-- Fixed POST /api/mocks Git commit/push - was using wildcard path instead of specific file path
-- Added idempotency check - returns 409 Conflict if file already exists
-- Added `.env.example` template for token configuration
-- Updated design document to v3.6 with:
-  - 409 Conflict response documentation
-  - Git access token configuration section
-  - Updated version history
-- All 91 tests passing
-
-### 2025-12-17
-- Implemented Mock Management API with 3 new endpoints
-- Created MocksController, MocksManagementService, and response models
-- Added Git commit/push functionality for create and delete operations
-- Created 23 new unit tests (11 for controller, 12 for service)
-- Updated design document to v3.5
-- Updated memory bank documentation
-
-### 2025-12-14 (Session 2)
-- Updated Docker Compose port mapping from 3000 to 5500
-- Moved memory bank from `.memory-bank` to `.clinerules/memory-bank`
-- Updated README.md with new port 5500
-- Updated design document to v3.4
-- Created GitHub issue #51
-
-### 2025-12-14 (Session 1)
-- Initialized memory bank with 5 core documents
+### 2026-01-08
+- Removed throttling middleware and all dependencies
+- Deleted: ThrottlingMiddleware, ThrottlingService, IThrottlingService, ThrottlingOptions, ThrottlingExtensions
+- Deleted: observability folder, docker-compose.observability files
+- Updated: MockeryMetrics.cs (removed throttling counters), Program.cs, appsettings files, Helm chart
+- Simplified k6 folder to single load-test.js with RPS and DURATION parameters
+- All 95 tests passing
+- Updated design document to v4.0

@@ -128,7 +128,7 @@ Mockery provides a flexible mock server with dual storage modes:
 6. **Probe Tracking:** No client application monitoring
 7. **Complex Request Matching:** No endpoint, method, or query parameter matching
 8. **Response Templating:** No dynamic response generation
-9. **~~Rate Limiting:~~** *(Implemented in v4.0)* Global throttling middleware with configurable rate limits
+9. **Rate Limiting:** No rate limiting or throttling middleware
 
 ---
 

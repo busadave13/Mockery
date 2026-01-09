@@ -1,7 +1,6 @@
 using Mockery.BusinessLogic;
 using Mockery.Configuration;
 using Mockery.Extensions;
-using Mockery.Middleware;
 using Mockery.Repository;
 using Mockery.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -59,9 +58,6 @@ builder.Services.AddScoped<IMockService, MockService>();
 builder.Services.AddScoped<IMocksManagementService, MocksManagementService>();
 builder.Services.AddSingleton<IContentTypeResolver, ContentTypeResolver>();
 builder.Services.AddSingleton<MockeryMetrics>();
-
-// Add throttling services
-builder.Services.AddThrottling(builder.Configuration);
 
 // Add health checks
 builder.Services.AddHealthChecks()
@@ -143,9 +139,6 @@ if (app.Environment.IsDevelopment())
 
 // Add OpenTelemetry observability middleware
 app.UseObservability();
-
-// Add throttling middleware (before routing, after observability)
-app.UseThrottling();
 
 app.UseCors();
 
