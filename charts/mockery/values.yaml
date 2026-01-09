@@ -36,14 +36,6 @@ config:
     otlpProtocol: "grpc"
     # OTLP API key for Aspire dashboard authentication
     otlpApiKey: "aspire"
-  # Throttling/Rate limiting configuration
-  throttling:
-    # Enable or disable throttling
-    enabled: true
-    # Maximum requests per second
-    requestsPerSecond: 100
-    # Maximum burst size (token bucket capacity)
-    burstSize: 50
 
 # Secrets configuration for Git repository access
 # The deployment always references a secret named "{name}-secrets" (e.g., "mockery-secrets")

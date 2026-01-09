@@ -6,8 +6,4 @@ metadata:
   labels:
     app: {{ .Values.name }}
     release: {{ .Release.Name }}
-data:
-  # Throttling configuration
-  Throttling__Enabled: {{ .Values.config.throttling.enabled | quote }}
-  Throttling__RequestsPerSecond: {{ .Values.config.throttling.requestsPerSecond | quote }}
-  Throttling__BurstSize: {{ .Values.config.throttling.burstSize | quote }}
+data: {}  # Throttling configuration
