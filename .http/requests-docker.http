@@ -1,0 +1,39 @@
+### Mockery API Requests - Docker Environment
+@host = localhost:5500
+
+### ===========================================
+### Get Mock
+### ===========================================
+### Retrieves mock response(s) based on X-Mockery-Mock header
+GET http://{{host}}/api/mock
+X-Mockery-Mock: mockery/success, mockery/success-2, mockery/401
+
+### ===========================================
+### Get Mocks (List)
+### ===========================================
+### Lists all available mocks
+GET http://{{host}}/api/mocks
+
+### ===========================================
+### Create Mock
+### ===========================================
+### Creates a new mock file
+POST http://{{host}}/api/mocks
+Content-Type: application/json
+X-Mockery-Mock: test/success.json
+
+{
+    "name": "foo"
+}
+
+### ===========================================
+### Delete Mock
+### ===========================================
+### Deletes an existing mock file
+DELETE http://{{host}}/api/mocks
+Content-Type: application/json
+X-Mockery-Mock: test/success.json
+
+{
+    "name": "foo"
+}
