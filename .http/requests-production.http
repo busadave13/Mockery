@@ -6,7 +6,7 @@
 ### ===========================================
 ### Retrieves mock response(s) based on X-Mockery-Mock header
 GET http://{{host}}/api/mock
-X-Mockery-Mock: mockery/success, mockery/success-2
+X-Mockery-Mock: mockery/success, mockery/success-2, mockery/401
 
 ### ===========================================
 ### Get Mocks (List)
