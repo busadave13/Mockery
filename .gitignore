@@ -59,7 +59,7 @@ mono_crash.*
 dlldata.c
 
 # VS Code
-.vscode/
+#.vscode/
 
 # macOS
 .DS_Store
