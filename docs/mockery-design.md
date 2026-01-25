@@ -1374,6 +1374,7 @@ src/Mockery.Test/
 │   └── MocksControllerTests.cs
 ├── Services/
 │   ├── MockServiceTests.cs
+│   ├── MocksManagementServiceTests.cs
 │   ├── ContentTypeResolverTests.cs
 │   └── GitRepositoryRefreshServiceTests.cs
 └── Repository/
@@ -1598,7 +1599,9 @@ echo '{"X-Custom":"Value"}' > mocks/MyService/test.headers.json
 ```
 src/
 ├── Mockery/
-│   ├── Controllers/MockController.cs
+│   ├── Controllers/
+│   │   ├── MockController.cs
+│   │   └── MocksController.cs
 │   ├── BusinessLogic/
 │   │   ├── IMockService.cs
 │   │   ├── MockService.cs
