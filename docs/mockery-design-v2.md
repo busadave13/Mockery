@@ -1,9 +1,11 @@
 # Mockery - Technical Design Document
 
-**Version:** 4.0
+**Version:** 5.0
 **Date:** 2026-01-24
 **Author:** System Architecture Team
 **Status:** Living Document
+
+> **⚠️ MAJOR REFACTOR (v5.0):** This version removes the LibGit2Sharp dependency and introduces Kubernetes-native Git operations using init containers and git-sync sidecars. Production mode is now **read-only** with multi-repository support. See [Section 6.1](#61-kubernetes-native-git-operations) for details.
 
 ---
 
@@ -39,16 +41,21 @@ Development and testing teams need a simple, reliable way to serve mock HTTP res
 Mockery provides a flexible mock server with dual storage modes:
 
 **Development Mode (Local File System):**
-- Reads mocks directly from local file system (`./mocks/` directory)
+- Reads and writes mocks directly from local file system (`./mocks/` directory)
 - Zero setup - no Git configuration required
 - Instant mock changes without restart
+- Full CRUD support (GET, POST, DELETE)
+- Single repository only (`X-Mockery-Repo` header not supported)
 - Perfect for rapid local development and testing
 
-**Production Mode (Git Repository):**
-- Stores mocks as files in a Git repository
-- Leverages Git for version control, history, and collaboration
-- Team-wide mock management through standard Git workflows
-- Automatic periodic refresh from remote repository
+**Production Mode (Kubernetes with Git Sync):**
+- **Read-only** - mocks served from Git repositories synced via Kubernetes-native tooling
+- **Multi-repository support** - configure multiple Git repos via ConfigMap
+- **Init container** clones repositories on pod startup
+- **git-sync sidecar** periodically pulls latest changes from remote
+- **No LibGit2Sharp** - eliminates native library dependencies
+- POST and DELETE endpoints return `501 Not Implemented`
+- Repository selection via `X-Mockery-Repo` header (optional, defaults to configured default)
 
 **Common Features:**
 - Single HTTP endpoint for mock retrieval
@@ -86,8 +93,10 @@ Mockery provides a flexible mock server with dual storage modes:
    - Return raw mock content with appropriate Content-Type
 
 2. **Dual-Mode Storage**
-   - **Local Mode (Development):** File system-based storage from `./mocks/` directory
-   - **Git Mode (Production):** Git repository-based storage with version control
+   - **Local Mode (Development):** File system-based storage from `./mocks/` directory with full read/write
+   - **Production Mode (Kubernetes):** Read-only access to Git-synced repositories
+   - **Multi-Repository Support (Production):** Configure multiple Git repositories via Kubernetes ConfigMap
+   - **Repository Selection:** Optional `X-Mockery-Repo` header to select repository (defaults to configured default)
    - Organize mocks by service folders in both modes
    - File extension determines Content-Type (.json, .html, etc.)
    - Strategy pattern allows easy switching between storage backends
@@ -123,12 +132,13 @@ Mockery provides a flexible mock server with dual storage modes:
 1. **Authentication:** No user authentication or authorization
 2. **User Management:** No user profiles, API keys, or account management
 3. **Statistics:** No request counting or usage analytics
-4. **~~CRUD Operations:~~** *(Implemented in v3.5)* Mock Management API provides list, create, and delete operations
+4. **Write Operations in Production:** POST and DELETE return `501 Not Implemented` in production (Kubernetes) mode
 5. **Environment Routing:** No environment-specific mock selection
 6. **Probe Tracking:** No client application monitoring
 7. **Complex Request Matching:** No endpoint, method, or query parameter matching
 8. **Response Templating:** No dynamic response generation
 9. **Rate Limiting:** No rate limiting or throttling middleware
+10. **Multi-Repository in Development:** `X-Mockery-Repo` header not supported in local development mode
 
 ---
 
@@ -149,12 +159,19 @@ Mockery follows a three-layer architecture pattern with pluggable storage:
 - Service layer for mock ID parsing and status code semantics
 - Random selection logic for multiple mock IDs
 - Content-type resolution
+- Repository routing based on `X-Mockery-Repo` header (production mode)
 
 **Repository Layer (Strategy Pattern):**
 - Abstract base class `FileSystemMockRepositoryBase` with shared file operations
-- **Local Mode:** `LocalFileMockRepository` for direct file system access
-- **Git Mode:** `GitMockRepository` with LibGit2Sharp for Git operations
+- **Local Mode:** `LocalFileMockRepository` for direct file system access (full read/write)
+- **Production Mode:** `MultiRepoFileMockRepository` for read-only access to multiple git-synced paths
 - Repository implementation selected at startup based on configuration
+
+**Kubernetes Infrastructure (Production Only):**
+- **Init Container:** Clones Git repositories on pod startup
+- **git-sync Sidecar:** Periodically pulls latest changes from remote repositories
+- **ConfigMap:** Multi-repository configuration with URLs, branches, and mount paths
+- **Secret:** Personal Access Tokens (PATs) for Git authentication
 
 ### 3.2 Core Components
 
@@ -178,10 +195,10 @@ Mockery follows a three-layer architecture pattern with pluggable storage:
 
 **MocksController - HTTP Layer Responsibilities:**
 - **GET /api/mocks:** List directory contents at specified path (X-Mockery-Mock header optional)
-- **POST /api/mocks:** Create new mock file (path in header, content in body)
-- **DELETE /api/mocks:** Delete mock file at specified path
+- **POST /api/mocks:** Create new mock file (development mode only; returns `501` in production)
+- **DELETE /api/mocks:** Delete mock file (development mode only; returns `501` in production)
 - Validate header presence and format for POST/DELETE
-- Return appropriate HTTP status codes (200, 201, 400, 404, 409)
+- Return appropriate HTTP status codes (200, 201, 400, 404, 409, 501)
 - Delegates to `IMocksManagementService` for all operations
 
 **Separation of Concerns:**
@@ -308,35 +325,34 @@ public record DeleteMockResponse
 
 #### 3.2.4 Repository Layer (`src/Mockery/Repository/`)
 
-**Interface:** `IGitMockRepository`
+**Interface:** `IMockRepository`
 
 ```csharp
-public interface IGitMockRepository
+public interface IMockRepository
 {
     Task InitializeAsync();
     Task<(string Content, string Extension)?> FindMockFileAsync(string serviceName, string fileId);
     Task<Dictionary<string, string>?> FindHeadersFileAsync(string serviceName, string fileId);
     Task<(int StatusCode, string? Content)?> FindStatusFileAsync(string serviceName, string fileId);
-    Task RefreshAsync();
     
     // Management API methods
     Task<DirectoryListingResponse> ListDirectoryAsync(string path);
     Task<CreateMockResponse> CreateFileAsync(string path, string content);
     Task<DeleteMockResponse> DeleteFileAsync(string path);
     
-    bool IsGitMode { get; }
+    bool IsReadOnly { get; }
 }
 ```
 
 **Base Class:** `FileSystemMockRepositoryBase` (abstract)
 
 **Implementations:**
-1. `GitMockRepository` (Git mode)
-2. `LocalFileMockRepository` (Local mode)
+1. `LocalFileMockRepository` (Development mode - full read/write)
+2. `MultiRepoFileMockRepository` (Production mode - read-only, multi-repo)
 
 **Architecture (Strategy Pattern):**
 ```
-IGitMockRepository (interface)
+IMockRepository (interface)
        ↑
        |
 FileSystemMockRepositoryBase (abstract base)
@@ -344,8 +360,9 @@ FileSystemMockRepositoryBase (abstract base)
        |
    ┌───┴────┐
    |        |
-GitMock   LocalFile
-Repository  MockRepository
+LocalFile   MultiRepo
+MockRepo    FileMockRepo
+(Dev)       (Prod)
 ```
 
 **Shared Responsibilities (FileSystemMockRepositoryBase):**
@@ -358,32 +375,36 @@ Repository  MockRepository
 - Support file extension detection (search for `{ServiceName}/{FileId}.*` to find extension)
 - Thread-safe operations via `SemaphoreSlim`
 - List directory contents (filters out hidden files starting with `.`)
-- Create new mock files with directory creation
-- Delete mock files with empty parent folder cleanup
 
-**GitMockRepository-Specific Responsibilities:**
-- Initialize Git repository connection (LibGit2Sharp)
-- Clone repository on first startup
-- Clean up existing non-Git files before clone
-- Pull latest changes from remote repository
-- Handle repository refresh/pull operations
-- Git credentials management for private repositories (access token)
-- **Commit and push changes** for create/delete operations
-- Use `Commands.Stage()` for new files, `Commands.Remove()` for deletions
-
-**LocalFileMockRepository-Specific Responsibilities:**
+**LocalFileMockRepository-Specific Responsibilities (Development):**
 - Verify local mocks directory exists
-- Create mocks directory if missing (`{ClonePath}/mocks`)
-- No Git operations or network dependencies
-- Instant file access without clone/pull overhead
-- Override `GetMocksRootPath()` to include `mocks/` subdirectory
+- Create mocks directory if missing (`{LocalPath}/mocks`)
+- Full read/write support (POST and DELETE operations)
+- Single repository only (`X-Mockery-Repo` header returns `400 Bad Request`)
+- `IsReadOnly` returns `false`
+
+**MultiRepoFileMockRepository-Specific Responsibilities (Production):**
+- Manage multiple repository mount paths from configuration
+- Resolve repository by name from `X-Mockery-Repo` header
+- Fall back to `defaultRepository` when header not provided
+- Return `404` if requested repository name not found in configuration
+- **Read-only:** `CreateFileAsync` and `DeleteFileAsync` throw `NotSupportedException`
+- `IsReadOnly` returns `true`
+- No Git operations - relies on init container and git-sync sidecar
+
+**Removed Components (v5.0):**
+- ~~`GitMockRepository`~~ - Replaced by `MultiRepoFileMockRepository` + Kubernetes git-sync
+- ~~`IGitMockRepository`~~ - Replaced by `IMockRepository`
+- ~~`GitRepositoryOptions`~~ - Replaced by `MultiRepoSettings`
+- ~~`GitRepositoryRefreshService`~~ - Replaced by git-sync sidecar
+- ~~`LibGit2Sharp` NuGet package~~ - No longer required
 
 **Configuration-Based Selection:**
 Repository implementation is selected at startup based on `appsettings.json`:
 ```json
 {
   "MockRepository": {
-    "Type": "Local",        // or "Git"
+    "Type": "Local",        // or "MultiRepo"
     "LocalPath": "./mocks"  // for Local mode
   }
 }
@@ -412,31 +433,179 @@ Repository implementation is selected at startup based on `appsettings.json`:
   - `.svg` → `image/svg+xml`
   - Default → `application/octet-stream`
 
-#### 3.2.6 Git Repository Refresh Service (`src/Mockery/Services/`)
+#### 3.2.6 Kubernetes Components (Production Mode Only)
 
-**Class:** `GitRepositoryRefreshService` (BackgroundService)
+Production deployments use Kubernetes-native tooling for Git operations instead of in-process LibGit2Sharp.
 
-**Responsibilities:**
-- Background service for periodic Git repository refresh (Git mode only)
-- Configurable refresh interval via `MockRepositorySettings.Git.AutoRefresh`
-- Supports both minutes and seconds interval configuration
-- Graceful error handling - logs errors but continues running
-- Cancellation token support for clean shutdown
+##### 3.2.6.1 Init Container
 
-**Configuration:**
-```json
-{
-  "MockRepository": {
-    "Git": {
-      "AutoRefresh": {
-        "Enabled": true,
-        "IntervalMinutes": 5,
-        "IntervalSeconds": 0
-      }
-    }
-  }
-}
+**Purpose:** Clone Git repositories on pod startup before main container starts.
+
+**Image:** `alpine/git:latest` (or similar lightweight git image)
+
+**Behavior:**
+1. Read repository configuration from mounted ConfigMap
+2. For each configured repository:
+   - Check if `mountPath` directory exists
+   - If directory **does not exist**: clone repository using PAT from Secret
+   - If directory **exists**: skip (already cloned, sidecar will sync)
+3. Exit with code `0` only when all clones complete successfully
+4. Main container startup blocked until init container exits
+
+**Configuration (from ConfigMap):**
+```yaml
+defaultRepository: "primary"
+repositories:
+  - name: "primary"
+    url: "https://github.com/org/mocks-primary.git"
+    branch: "main"
+    mountPath: "/app/mocks/primary"
+    secretKeyRef: "primary-pat"
+  - name: "secondary"
+    url: "https://github.com/org/mocks-secondary.git"
+    branch: "main"
+    mountPath: "/app/mocks/secondary"
+    secretKeyRef: "secondary-pat"
 ```
+
+**Init Container Script (conceptual):**
+```bash
+#!/bin/sh
+set -e
+
+# Parse ConfigMap JSON/YAML for repositories
+for repo in $(cat /config/repositories.json | jq -r '.repositories[] | @base64'); do
+    name=$(echo $repo | base64 -d | jq -r '.name')
+    url=$(echo $repo | base64 -d | jq -r '.url')
+    branch=$(echo $repo | base64 -d | jq -r '.branch')
+    mountPath=$(echo $repo | base64 -d | jq -r '.mountPath')
+    secretKey=$(echo $repo | base64 -d | jq -r '.secretKeyRef')
+    
+    if [ ! -d "$mountPath/.git" ]; then
+        echo "Cloning $name to $mountPath..."
+        pat=$(cat /secrets/$secretKey)
+        git clone --branch $branch --single-branch \
+            "https://${pat}@${url#https://}" "$mountPath"
+    else
+        echo "$name already exists at $mountPath, skipping clone"
+    fi
+done
+
+echo "All repositories cloned successfully"
+```
+
+##### 3.2.6.2 git-sync Sidecar
+
+**Purpose:** Periodically pull latest changes from remote Git repositories.
+
+**Image:** `registry.k8s.io/git-sync/git-sync:v4.4.0`
+
+**Behavior:**
+- Runs alongside main container in same pod
+- Shares volume mounts with main container
+- Pulls changes on configurable interval (default: 60 seconds)
+- One sidecar container per repository
+- Pull-only operation (no push support)
+
+**Key Configuration Options:**
+| Environment Variable | Description | Example |
+|---------------------|-------------|---------|
+| `GITSYNC_REPO` | Git repository URL | `https://github.com/org/mocks.git` |
+| `GITSYNC_BRANCH` | Branch to sync | `main` |
+| `GITSYNC_ROOT` | Local directory to sync to | `/app/mocks/primary` |
+| `GITSYNC_PERIOD` | Sync interval | `60s` |
+| `GITSYNC_USERNAME` | Git username (for PAT auth) | `oauth2` |
+| `GITSYNC_PASSWORD_FILE` | Path to file containing PAT | `/secrets/primary-pat` |
+| `GITSYNC_ONE_TIME` | Exit after first sync | `false` |
+| `GITSYNC_DEPTH` | Git clone depth (shallow clone) | `1` |
+
+**Example Sidecar Configuration:**
+```yaml
+- name: git-sync-primary
+  image: registry.k8s.io/git-sync/git-sync:v4.4.0
+  env:
+    - name: GITSYNC_REPO
+      value: "https://github.com/org/mocks-primary.git"
+    - name: GITSYNC_BRANCH
+      value: "main"
+    - name: GITSYNC_ROOT
+      value: "/app/mocks/primary"
+    - name: GITSYNC_PERIOD
+      value: "60s"
+    - name: GITSYNC_USERNAME
+      value: "oauth2"
+    - name: GITSYNC_PASSWORD_FILE
+      value: "/secrets/primary-pat"
+  volumeMounts:
+    - name: mocks-primary
+      mountPath: /app/mocks/primary
+    - name: git-secrets
+      mountPath: /secrets
+      readOnly: true
+```
+
+##### 3.2.6.3 Multi-Repository ConfigMap Schema
+
+**ConfigMap:** `mockery-repos-config`
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mockery-repos-config
+data:
+  repositories.json: |
+    {
+      "defaultRepository": "primary",
+      "repositories": [
+        {
+          "name": "primary",
+          "url": "https://github.com/org/mocks-primary.git",
+          "branch": "main",
+          "mountPath": "/app/mocks/primary",
+          "secretKeyRef": "primary-pat"
+        },
+        {
+          "name": "secondary",
+          "url": "https://github.com/org/mocks-secondary.git",
+          "branch": "develop",
+          "mountPath": "/app/mocks/secondary",
+          "secretKeyRef": "secondary-pat"
+        }
+      ]
+    }
+```
+
+**Field Descriptions:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `defaultRepository` | string | Yes | Name of repository to use when `X-Mockery-Repo` header is not provided |
+| `repositories` | array | Yes | List of repository configurations |
+| `repositories[].name` | string | Yes | Unique identifier for the repository (used in `X-Mockery-Repo` header) |
+| `repositories[].url` | string | Yes | Git repository URL (HTTPS) |
+| `repositories[].branch` | string | Yes | Branch to clone/sync |
+| `repositories[].mountPath` | string | Yes | Absolute path where repository will be mounted |
+| `repositories[].secretKeyRef` | string | Yes | Key name in Kubernetes Secret containing the PAT |
+
+##### 3.2.6.4 Kubernetes Secret Schema
+
+**Secret:** `mockery-git-secrets`
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mockery-git-secrets
+type: Opaque
+stringData:
+  primary-pat: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  secondary-pat: ghp_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+```
+
+**Notes:**
+- Each key in the Secret corresponds to a `secretKeyRef` in the ConfigMap
+- PATs require `repo` scope for private repositories or `public_repo` for public repositories
+- Use `stringData` for plain text values or `data` for base64-encoded values
 
 #### 3.2.7 OpenTelemetry Extensions (`src/Mockery/Extensions/`)
 
@@ -625,10 +794,16 @@ X-Mockery-Mock: FooBar/504
 - **Auth:** None
 - **Headers:**
   - `X-Mockery-Mock: <service>/<mock-id>` or `X-Mockery-Mock: <service1>/<id1>,<service2>/<id2>` (required)
+  - `X-Mockery-Repo: <repository-name>` (optional, production mode only)
 - **Response:** HTTP status code (from `.status.json` or default 200) with mock file contents and custom headers
 - **Content-Type:** Determined from file extension
 - **Behavior:**
   - Parse `X-Mockery-Mock` header (required, format: `ServiceName/MockId`)
+  - **Production mode:** Parse `X-Mockery-Repo` header to select repository
+    - If header present: Use specified repository name
+    - If header absent: Use `defaultRepository` from configuration
+    - If repository name not found: Return `404 Not Found`
+  - **Development mode:** `X-Mockery-Repo` header returns `400 Bad Request` (not supported)
   - If single mock ID: Use that mock ID
   - If multiple mock IDs (comma-separated): Randomly select one using `Random.Shared`
   - Check for status file first (`{ServiceName}/{MockId}.status.json`)
@@ -640,8 +815,8 @@ X-Mockery-Mock: FooBar/504
   - Add custom headers from headers file (if present)
   - Return response based on file type
 - **Errors:**
-  - `400 Bad Request`: Missing `X-Mockery-Mock` header or no valid mock IDs
-  - `404 Not Found`: No matching mock file found in repository
+  - `400 Bad Request`: Missing `X-Mockery-Mock` header, no valid mock IDs, or `X-Mockery-Repo` used in development mode
+  - `404 Not Found`: No matching mock file found, or repository name not found (production mode)
   - `500 Internal Server Error`: Unexpected error
 
 **Example Requests:**
@@ -651,6 +826,14 @@ X-Mockery-Mock: FooBar/504
 GET /api/mock HTTP/1.1
 Host: mockery.example.com
 X-Mockery-Mock: FooBar/1234
+```
+
+*With Repository Selection (Production Mode):*
+```http
+GET /api/mock HTTP/1.1
+Host: mockery.example.com
+X-Mockery-Mock: FooBar/1234
+X-Mockery-Repo: secondary
 ```
 
 *Multiple Mock IDs (random selection):*
@@ -757,20 +940,23 @@ X-Mockery-Mock: weather/prod
 
 **POST /api/mocks**
 - **Auth:** None
-- **Purpose:** Create a new mock file
+- **Purpose:** Create a new mock file (**development mode only**)
 - **Headers:**
   - `X-Mockery-Mock: <path/filename>` (required, e.g., `weather/prod/success.json`)
 - **Body:** File content (raw text/JSON/HTML/etc.)
 - **Response:** 
-  - `201 Created` with file metadata on success
+  - `201 Created` with file metadata on success (development mode)
   - `409 Conflict` if file already exists (idempotency check)
+  - `501 Not Implemented` in production mode
 - **Behavior:**
-  - Creates directories if they don't exist
-  - **Idempotent:** Returns 409 Conflict if file already exists
-  - In Git mode: commits and pushes to configured branch
+  - **Production mode:** Returns `501 Not Implemented` immediately
+  - **Development mode:**
+    - Creates directories if they don't exist
+    - **Idempotent:** Returns 409 Conflict if file already exists
 - **Errors:**
   - `400 Bad Request`: Missing `X-Mockery-Mock` header or empty body
   - `409 Conflict`: File already exists at specified path
+  - `501 Not Implemented`: Production mode (read-only)
 
 **Example Request:**
 ```http
@@ -792,16 +978,6 @@ Content-Type: application/json
 }
 ```
 
-**Example Response (Git Mode):**
-```json
-{
-  "path": "weather/prod",
-  "fileName": "success.json",
-  "size": 42,
-  "committedToGit": true
-}
-```
-
 **Example Error Response (File Exists):**
 ```http
 HTTP/1.1 409 Conflict
@@ -812,21 +988,35 @@ Content-Type: application/json
 }
 ```
 
+**Example Error Response (Production Mode):**
+```http
+HTTP/1.1 501 Not Implemented
+Content-Type: application/json
+
+{
+  "error": "Write operations are not supported in production mode"
+}
+```
+
 ---
 
 **DELETE /api/mocks**
 - **Auth:** None
-- **Purpose:** Delete a mock file
+- **Purpose:** Delete a mock file (**development mode only**)
 - **Headers:**
   - `X-Mockery-Mock: <path/filename>` (required, e.g., `weather/prod/success.json`)
-- **Response:** 200 OK with deletion details
+- **Response:** 
+  - `200 OK` with deletion details (development mode)
+  - `501 Not Implemented` in production mode
 - **Behavior:**
-  - Deletes the specified file
-  - Deletes empty parent folders up to (but not including) mocks root
-  - In Git mode: commits and pushes to configured branch
+  - **Production mode:** Returns `501 Not Implemented` immediately
+  - **Development mode:**
+    - Deletes the specified file
+    - Deletes empty parent folders up to (but not including) mocks root
 - **Errors:**
   - `400 Bad Request`: Missing `X-Mockery-Mock` header
   - `404 Not Found`: File not found
+  - `501 Not Implemented`: Production mode (read-only)
 
 **Example Request:**
 ```http
@@ -835,12 +1025,22 @@ Host: mockery.example.com
 X-Mockery-Mock: weather/prod/success.json
 ```
 
-**Example Response:**
+**Example Response (Development Mode):**
 ```json
 {
   "deletedFile": "weather/prod/success.json",
   "deletedFolders": ["weather/prod", "weather"],
-  "committedToGit": true
+  "committedToGit": false
+}
+```
+
+**Example Error Response (Production Mode):**
+```http
+HTTP/1.1 501 Not Implemented
+Content-Type: application/json
+
+{
+  "error": "Write operations are not supported in production mode"
 }
 ```
 
@@ -886,31 +1086,69 @@ Mockery uses ASP.NET Core HealthChecks middleware for container orchestration.
 
 ## 6. Key Technical Decisions
 
-### 6.1 Git Repository Over Database
+### 6.1 Kubernetes-Native Git Operations
 
-**Decision:** Use Git repository for storing mock files instead of MongoDB or other database.
+**Decision:** Use Kubernetes init containers and git-sync sidecars instead of in-process LibGit2Sharp for Git operations in production.
 
 **Rationale:**
-- **Version Control:** Full audit trail of all mock changes via Git history
-- **Collaboration:** Standard pull request workflows for reviewing mock changes
-- **Simplicity:** No database infrastructure, connection pooling, or schema management
-- **Transparency:** Mock content visible in standard text editors and Git tools
-- **Branching:** Support for feature branches, staging environments via Git branches
-- **Rollback:** Easy rollback to previous mock versions via Git revert/reset
-- **Developer Familiarity:** Teams already use Git daily
+- **No Native Dependencies:** LibGit2Sharp requires native libraries that can cause compatibility issues across platforms
+- **Separation of Concerns:** Git operations handled by dedicated containers, application focuses on serving mocks
+- **Battle-Tested Tooling:** `git-sync` is a mature, well-maintained Kubernetes project from the sig-apps community
+- **Simplified Application:** Application becomes stateless file reader, easier to test and maintain
+- **Multi-Repository Support:** Easier to configure multiple repositories with separate sidecars
+- **Reduced Attack Surface:** Git credentials not handled by application code
 
 **Trade-offs:**
-- **Query Performance:** No indexed lookups (mitigated by file system caching)
-- **Concurrency:** File system locks instead of database transactions (acceptable for read-only operations)
-- **Scalability:** Limited by file system performance (acceptable for testing use case)
+- **Kubernetes Dependency:** Production mode requires Kubernetes; cannot run Git-synced mocks in standalone Docker
+- **Read-Only Production:** No real-time write operations; mocks must be updated via Git commits
+- **Sync Latency:** Changes take up to sync interval (default 60s) to appear
+- **Resource Overhead:** Additional sidecar containers consume memory/CPU
 
 **Implementation:**
-- Use LibGit2Sharp 0.30.0 for Git operations in C#
-- Clone repository on service startup
-- Periodic refresh to pull latest changes (configurable interval)
-- File system search within service folders
+- **Init Container:** Alpine + git image clones repos on pod startup
+- **Sidecar:** `registry.k8s.io/git-sync/git-sync:v4.4.0` pulls changes periodically
+- **ConfigMap:** Repository configuration (URLs, branches, mount paths)
+- **Secret:** Personal Access Tokens for Git authentication
 
-### 6.2 Status Files for HTTP Status Codes
+### 6.2 Read-Only Production Mode
+
+**Decision:** Production mode is read-only; POST and DELETE endpoints return `501 Not Implemented`.
+
+**Rationale:**
+- **Simplicity:** No need for push logic, conflict resolution, or transaction management
+- **Git as Source of Truth:** All mock changes go through standard Git workflows (PRs, reviews)
+- **Audit Trail:** Every change is a Git commit with author and timestamp
+- **Consistency:** All replicas serve identical content from Git
+- **Security:** Application cannot modify production data
+
+**Trade-offs:**
+- **No Real-Time Updates:** Cannot create/delete mocks via API in production
+- **Workflow Change:** Teams must use Git instead of API for mock management in production
+
+### 6.3 Multi-Repository Support
+
+**Decision:** Support multiple Git repositories in production mode via `X-Mockery-Repo` header.
+
+**Rationale:**
+- **Team Isolation:** Different teams can manage their own mock repositories
+- **Access Control:** Git repository permissions provide natural access boundaries
+- **Scalability:** Large organizations can partition mocks across repositories
+- **Flexibility:** Different branches/repos for different environments or use cases
+
+**Implementation:**
+- ConfigMap defines multiple repositories with unique names
+- `X-Mockery-Repo` header selects which repository to query
+- `defaultRepository` configuration provides fallback when header not present
+- Each repository has its own mount path, git-sync sidecar, and PAT
+
+**Trade-offs:**
+- **Complexity:** More configuration than single-repo setup
+- **Resource Usage:** Each repository requires its own git-sync sidecar
+- **Development Parity:** Development mode only supports single local directory
+
+### 6.4 Git Repository for Mock Storage
+
+### 6.5 Status Files for HTTP Status Codes
 
 **Decision:** Use `.status.json` files with status code in filename instead of request headers.
 
@@ -932,7 +1170,7 @@ mocks/FooBar/200.status.json → Returns HTTP 200
 - **Naming Convention:** Status code must be first part of filename
 - **Validation:** Status code extracted from filename must be valid (100-599)
 
-### 6.3 File Extension for Content-Type Detection
+### 6.6 File Extension for Content-Type Detection
 
 **Decision:** Determine HTTP Content-Type header from file extension instead of metadata files or configuration.
 
@@ -959,7 +1197,7 @@ mocks/FooBar/200.status.json → Returns HTTP 200
 | `.svg` | `image/svg+xml` |
 | (default) | `application/octet-stream` |
 
-### 6.4 Optional Headers Files
+### 6.7 Optional Headers Files
 
 **Decision:** Support optional `.headers.json` files alongside mock files for custom HTTP response headers.
 
@@ -975,7 +1213,7 @@ mocks/FooBar/200.status.json → Returns HTTP 200
 - **Consistency:** Must keep mock and headers files in sync
 - **Naming Convention:** Developers must follow `.headers.json` convention
 
-### 6.5 Random Selection from Multiple Mock IDs
+### 6.8 Random Selection from Multiple Mock IDs
 
 **Decision:** Support comma-separated mock IDs in header with random selection.
 
@@ -995,7 +1233,7 @@ var selectedMockId = mockIdList.Count > 1
 - **Non-Deterministic:** Same request may return different responses
 - **No Weighted Selection:** All mock IDs have equal probability
 
-### 6.6 Service Folder Organization
+### 6.9 Service Folder Organization
 
 **Decision:** Organize mocks by service folders and require service name prefix in mock IDs.
 
@@ -1007,7 +1245,7 @@ var selectedMockId = mockIdList.Count > 1
 - **Scalability:** Avoid thousands of files in single directory
 - **Collision Prevention:** Same file ID can exist in different services
 
-### 6.7 No Authentication
+### 6.10 No Authentication
 
 **Decision:** Remove all authentication and authorization mechanisms.
 
@@ -1021,7 +1259,7 @@ var selectedMockId = mockIdList.Count > 1
 - **Network-Level:** Deploy in private networks or behind VPN
 - **Infrastructure-Level:** Use Azure Front Door, API Gateway, or firewall rules
 
-### 6.8 OpenTelemetry Integration
+### 6.11 OpenTelemetry Integration
 
 **Decision:** Full OpenTelemetry integration for observability.
 
@@ -1045,9 +1283,10 @@ var selectedMockId = mockIdList.Count > 1
 
 | Service | Version | Purpose | Criticality | Mode |
 |---------|---------|---------|-------------|------|
-| **Git Repository** | 2.0+ | Mock file storage and version control | Critical | Git Mode Only |
-| **Local File System** | N/A | Mock file storage for local development | Critical | Local Mode Only |
+| **Git Repository** | 2.0+ | Mock file storage and version control | Critical | Production Only |
+| **Local File System** | N/A | Mock file storage for local development | Critical | Development Only |
 | **OTLP Endpoint** | OTEL 1.0+ | Centralized telemetry collection | Optional | Both |
+| **Kubernetes** | 1.25+ | Container orchestration with init containers and sidecars | Critical | Production Only |
 
 ### 7.2 Internal Services
 
@@ -1060,7 +1299,6 @@ None (monolithic architecture)
 | Package | Version | Purpose |
 |---------|---------|---------|
 | **Microsoft.AspNetCore.App** | 9.0.0 | ASP.NET Core framework |
-| **LibGit2Sharp** | 0.30.0 | Git operations in C# |
 | **Microsoft.AspNetCore.OpenApi** | 9.0.0 | OpenAPI support |
 | **Swashbuckle.AspNetCore** | 6.9.0 | Swagger UI |
 | **OpenTelemetry.Extensions.Hosting** | 1.10.0 | OTEL hosting integration |
@@ -1069,6 +1307,12 @@ None (monolithic architecture)
 | **OpenTelemetry.Exporter.Console** | 1.10.0 | Console exporter |
 | **OpenTelemetry.Exporter.OpenTelemetryProtocol** | 1.10.0 | OTLP exporter |
 | **OpenTelemetry.Exporter.Prometheus.AspNetCore** | 1.10.0-beta.1 | Prometheus exporter |
+
+**Removed in v5.0:**
+
+| Package | Version | Reason |
+|---------|---------|--------|
+| ~~LibGit2Sharp~~ | ~~0.30.0~~ | Replaced by Kubernetes git-sync sidecar |
 
 #### 7.3.2 Testing Frameworks
 
@@ -1087,22 +1331,56 @@ None (monolithic architecture)
 
 ```mermaid
 graph TB
-    Client[Client Application]
-    MockeryAPI[Mockery REST API]
-    GitRepo[Git Repository<br/>Mock Files]
-    FileSystem[Local File System<br/>Repository Clone/Local Mocks]
-    OTEL[OpenTelemetry Collector<br/>Aspire Dashboard]
+    subgraph "Development"
+        DevClient[Client Application]
+        DevMockery[Mockery REST API]
+        DevFS[Local File System<br/>./mocks/]
+    end
 
-    Client -->|GET /api/mock<br/>X-Mockery-Mock| MockeryAPI
-    MockeryAPI -->|Pull on Startup<br/>Periodic Refresh| GitRepo
-    MockeryAPI -->|Read Mock Files| FileSystem
+    subgraph "Production (Kubernetes)"
+        ProdClient[Client Application]
+        
+        subgraph "Pod"
+            InitContainer[Init Container<br/>git clone]
+            MockeryAPI[Mockery REST API]
+            GitSync1[git-sync Sidecar<br/>Repository 1]
+            GitSync2[git-sync Sidecar<br/>Repository 2]
+        end
+        
+        ProdFS[Shared Volumes<br/>/app/mocks/*]
+        GitRepo1[Git Repository 1]
+        GitRepo2[Git Repository 2]
+        ConfigMap[ConfigMap<br/>Repo Config]
+        Secret[Secret<br/>PATs]
+    end
+    
+    OTEL[OpenTelemetry Collector]
+
+    DevClient -->|GET /api/mock<br/>X-Mockery-Mock| DevMockery
+    DevMockery -->|Read/Write| DevFS
+    
+    ProdClient -->|GET /api/mock<br/>X-Mockery-Mock<br/>X-Mockery-Repo| MockeryAPI
+    InitContainer -->|Clone on startup| ProdFS
+    MockeryAPI -->|Read only| ProdFS
+    GitSync1 -->|Periodic pull| ProdFS
+    GitSync2 -->|Periodic pull| ProdFS
+    GitSync1 -.->|Fetch| GitRepo1
+    GitSync2 -.->|Fetch| GitRepo2
+    InitContainer -.->|Read config| ConfigMap
+    InitContainer -.->|Read PATs| Secret
+    GitSync1 -.->|Read PAT| Secret
+    GitSync2 -.->|Read PAT| Secret
+    
+    DevMockery -.->|Metrics/Traces/Logs| OTEL
     MockeryAPI -.->|Metrics/Traces/Logs| OTEL
-    GitRepo -.->|Clone/Pull| FileSystem
 
     style MockeryAPI fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
-    style GitRepo fill:#F05032,stroke:#fff,stroke-width:2px,color:#fff
-    style FileSystem fill:#FFA000,stroke:#fff,stroke-width:2px,color:#fff
-    style OTEL fill:#9C27B0,stroke:#fff,stroke-width:2px,color:#fff
+    style DevMockery fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
+    style GitRepo1 fill:#F05032,stroke:#fff,stroke-width:2px,color:#fff
+    style GitRepo2 fill:#F05032,stroke:#fff,stroke-width:2px,color:#fff
+    style GitSync1 fill:#00A6ED,stroke:#fff,stroke-width:2px,color:#fff
+    style GitSync2 fill:#00A6ED,stroke:#fff,stroke-width:2px,color:#fff
+    style InitContainer fill:#FFA000,stroke:#fff,stroke-width:2px,color:#000
 ```
 
 ### 8.2 Component Architecture Diagram
@@ -1111,6 +1389,7 @@ graph TB
 graph TB
     subgraph "Presentation Layer"
         MockCtrl[MockController]
+        MocksCtrl[MocksController]
         HealthChecks[Health Check Endpoints]
         Swagger[Swagger UI]
         Prometheus[Prometheus Endpoint]
@@ -1118,64 +1397,80 @@ graph TB
 
     subgraph "Business Logic Layer"
         MockService[MockService]
+        MocksMgmtService[MocksManagementService]
         ContentTypeResolver[ContentTypeResolver]
     end
 
     subgraph "Repository Layer"
-        RepoInterface[IGitMockRepository]
+        RepoInterface[IMockRepository]
         BaseRepo[FileSystemMockRepositoryBase]
-        GitRepo[GitMockRepository]
-        LocalRepo[LocalFileMockRepository]
-        RefreshService[GitRepositoryRefreshService]
+        LocalRepo[LocalFileMockRepository<br/>Development - R/W]
+        MultiRepo[MultiRepoFileMockRepository<br/>Production - Read Only]
     end
 
-    subgraph "Infrastructure"
-        LibGit2[LibGit2Sharp]
-        FileSystem[File System]
-        GitRemote[Git Repository]
+    subgraph "Infrastructure (Development)"
+        DevFS[Local File System<br/>./mocks/]
+    end
+
+    subgraph "Infrastructure (Production - Kubernetes)"
+        InitContainer[Init Container]
+        GitSync[git-sync Sidecars]
+        ProdFS[Shared Volumes]
+        GitRemote[Git Repositories]
     end
 
     MockCtrl --> MockService
+    MocksCtrl --> MocksMgmtService
     MockService --> RepoInterface
+    MocksMgmtService --> RepoInterface
     MockService --> ContentTypeResolver
 
     RepoInterface --> BaseRepo
-    BaseRepo --> GitRepo
     BaseRepo --> LocalRepo
+    BaseRepo --> MultiRepo
 
-    GitRepo --> LibGit2
-    GitRepo --> FileSystem
-    LocalRepo --> FileSystem
-    RefreshService --> GitRepo
-
-    LibGit2 --> GitRemote
+    LocalRepo --> DevFS
+    MultiRepo --> ProdFS
+    
+    InitContainer -->|Clone| ProdFS
+    GitSync -->|Pull| ProdFS
+    InitContainer -.->|Fetch| GitRemote
+    GitSync -.->|Fetch| GitRemote
 
     style MockService fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
     style BaseRepo fill:#00A6ED,stroke:#fff,stroke-width:2px,color:#fff
+    style LocalRepo fill:#4CAF50,stroke:#fff,stroke-width:2px,color:#fff
+    style MultiRepo fill:#FF9800,stroke:#fff,stroke-width:2px,color:#000
+    style InitContainer fill:#FFA000,stroke:#fff,stroke-width:2px,color:#000
+    style GitSync fill:#00A6ED,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
-### 8.3 Mock Retrieval Sequence Diagram
+### 8.3 Mock Retrieval Sequence Diagram (Production with Multi-Repo)
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant Controller as MockController
     participant Service as MockService
-    participant Repo as Repository
-    participant FS as FileSystem
+    participant Repo as MultiRepoFileMockRepository
+    participant FS as FileSystem (/app/mocks/secondary)
 
-    Client->>Controller: GET /api/mock<br/>X-Mockery-Mock: FooBar/504
-    Controller->>Controller: Parse X-Mockery-Mock header
-    Controller->>Service: GetMockAsync(["FooBar/504"])
+    Client->>Controller: GET /api/mock<br/>X-Mockery-Mock: FooBar/504<br/>X-Mockery-Repo: secondary
+    Controller->>Controller: Parse headers
+    Controller->>Service: GetMockAsync(["FooBar/504"], "secondary")
+
+    Service->>Repo: ResolveRepository("secondary")
+    Repo->>Repo: Find repo config by name
+    Repo-->>Service: mountPath=/app/mocks/secondary
 
     Service->>Service: Parse: service=FooBar, fileId=504
     Service->>Repo: FindHeadersFileAsync("FooBar", "504")
-    Repo->>FS: Check FooBar/504.headers.json
+    Repo->>FS: Check /app/mocks/secondary/FooBar/504.headers.json
     FS-->>Repo: null (not found)
     Repo-->>Service: null
 
     Service->>Repo: FindStatusFileAsync("FooBar", "504")
-    Repo->>FS: Check FooBar/504.status.json
+    Repo->>FS: Check /app/mocks/secondary/FooBar/504.status.json
     FS-->>Repo: File exists
     Repo->>Repo: Parse status code from "504"
     Repo->>FS: Read file content
@@ -1189,7 +1484,60 @@ sequenceDiagram
     Controller-->>Client: HTTP 504<br/>Content-Type: application/json<br/>Body: error JSON
 ```
 
-### 8.4 File Organization Diagram
+### 8.4 Kubernetes Pod Structure Diagram
+
+```mermaid
+graph TB
+    subgraph "Kubernetes Pod"
+        subgraph "Init Containers (sequential)"
+            Init[git-clone-init<br/>alpine/git:latest]
+        end
+        
+        subgraph "Containers (parallel)"
+            Main[mockery<br/>Main Application]
+            Sync1[git-sync-primary<br/>git-sync:v4.4.0]
+            Sync2[git-sync-secondary<br/>git-sync:v4.4.0]
+        end
+    end
+    
+    subgraph "Volumes"
+        Vol1[mocks-primary<br/>emptyDir]
+        Vol2[mocks-secondary<br/>emptyDir]
+        ConfigVol[config-volume<br/>ConfigMap]
+        SecretVol[secrets-volume<br/>Secret]
+    end
+    
+    subgraph "External"
+        GitRepo1[GitHub Repo 1]
+        GitRepo2[GitHub Repo 2]
+    end
+
+    Init -->|mount| Vol1
+    Init -->|mount| Vol2
+    Init -->|read| ConfigVol
+    Init -->|read| SecretVol
+    Init -.->|clone| GitRepo1
+    Init -.->|clone| GitRepo2
+    
+    Main -->|read /app/mocks/primary| Vol1
+    Main -->|read /app/mocks/secondary| Vol2
+    Main -->|read| ConfigVol
+    
+    Sync1 -->|write| Vol1
+    Sync1 -->|read| SecretVol
+    Sync1 -.->|pull| GitRepo1
+    
+    Sync2 -->|write| Vol2
+    Sync2 -->|read| SecretVol
+    Sync2 -.->|pull| GitRepo2
+
+    style Main fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
+    style Init fill:#FFA000,stroke:#fff,stroke-width:2px,color:#000
+    style Sync1 fill:#00A6ED,stroke:#fff,stroke-width:2px,color:#fff
+    style Sync2 fill:#00A6ED,stroke:#fff,stroke-width:2px,color:#fff
+```
+
+### 8.5 File Organization Diagram
 
 ```mermaid
 graph TB
@@ -1374,13 +1722,15 @@ src/Mockery.Test/
 │   └── MocksControllerTests.cs
 ├── Services/
 │   ├── MockServiceTests.cs
-│   ├── MocksManagementServiceTests.cs
-│   ├── ContentTypeResolverTests.cs
-│   └── GitRepositoryRefreshServiceTests.cs
+│   └── ContentTypeResolverTests.cs
 └── Repository/
-    ├── GitMockRepositoryTests.cs
-    └── LocalFileMockRepositoryTests.cs
+    ├── LocalFileMockRepositoryTests.cs
+    └── MultiRepoFileMockRepositoryTests.cs
 ```
+
+**Removed in v5.0:**
+- ~~`GitMockRepositoryTests.cs`~~ - GitMockRepository removed
+- ~~`GitRepositoryRefreshServiceTests.cs`~~ - GitRepositoryRefreshService removed
 
 **Total Tests:** 95
 
@@ -1416,10 +1766,10 @@ public class MockControllerIntegrationTests : IClassFixture<WebApplicationFactor
 
 | Environment | Purpose | Repository Mode |
 |-------------|---------|-----------------|
-| **Local** | Developer testing | Local |
+| **Local** | Developer testing | Local (read/write) |
 | **CI/CD** | Automated tests | Local (test fixtures) |
-| **Staging** | Pre-production | Git |
-| **Production** | Live | Git |
+| **Staging** | Pre-production | MultiRepo (read-only) |
+| **Production** | Live | MultiRepo (read-only) |
 
 ---
 
@@ -1481,24 +1831,54 @@ config:
     otlpProtocol: "grpc"
     otlpApiKey: "aspire"
 
-persistence:
-  enabled: true
-  size: 1Gi
+# Multi-repository configuration (v5.0+)
+gitRepositories:
+  defaultRepository: "primary"
+  repositories:
+    - name: "primary"
+      url: "https://github.com/org/mocks-primary.git"
+      branch: "main"
+      mountPath: "/app/mocks/primary"
+      secretKeyRef: "primary-pat"
+    - name: "secondary"
+      url: "https://github.com/org/mocks-secondary.git"
+      branch: "main"
+      mountPath: "/app/mocks/secondary"
+      secretKeyRef: "secondary-pat"
+
+# git-sync sidecar configuration
+gitSync:
+  image: registry.k8s.io/git-sync/git-sync:v4.4.0
+  period: "60s"
+  depth: 1
+
+# Init container configuration
+initContainer:
+  image: alpine/git:latest
 ```
+
+**Helm Templates (v5.0 Changes):**
+
+| Template | Changes |
+|----------|--------|
+| `deployment.yaml` | Added init container, git-sync sidecars, multiple volume mounts |
+| `configmap.yaml` | Added `repositories.json` with multi-repo configuration |
+| `secret.yaml` | PATs keyed by `secretKeyRef` names |
+| `pvc.yaml` | Removed (using emptyDir volumes per repo) |
 
 ### 11.3 Environment Configuration
 
 | Environment | Mode | Config File |
 |-------------|------|-------------|
 | Development | Local | `appsettings.Development.json` |
-| Production | Git | `appsettings.Production.json` |
+| Production | MultiRepo | `appsettings.Production.json` |
 
 **Development Settings:**
 ```json
 {
   "MockRepository": {
     "Type": "Local",
-    "LocalPath": "../.."
+    "LocalPath": "../.."  // Relative to src/Mockery/
   }
 }
 ```
@@ -1507,47 +1887,31 @@ persistence:
 ```json
 {
   "MockRepository": {
-    "Type": "Git",
-    "Git": {
-      "RepositoryUrl": "https://github.com/org/mocks.git",
-      "Branch": "main",
-      "ClonePath": "/app/mocks",
-      "AccessToken": "",
-      "AutoRefresh": {
-        "Enabled": true,
-        "IntervalMinutes": 5
-      }
-    }
+    "Type": "MultiRepo"
+    // Repository configuration loaded from ConfigMap
+    // See Section 3.2.6.3 for ConfigMap schema
   }
 }
 ```
 
-**Git Access Token Configuration:**
+**Kubernetes ConfigMap for Production:**
 
-For Git push operations (POST/DELETE /api/mocks), an access token is required. Configure it using one of these methods:
+The multi-repository configuration is provided via Kubernetes ConfigMap (see Section 3.2.6.3). The application reads this configuration on startup to determine available repositories and the default repository.
 
-1. **Environment Variable (Recommended for Docker):**
-   ```bash
-   export MOCKERY_GIT_TOKEN=ghp_your_github_personal_access_token
-   ```
+**Kubernetes Secret for PATs:**
 
-2. **Docker Compose `.env` file:**
-   Create a `.env` file in the project root:
-   ```
-   MOCKERY_GIT_TOKEN=ghp_your_github_personal_access_token
-   ```
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mockery-git-secrets
+type: Opaque
+stringData:
+  primary-pat: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  secondary-pat: ghp_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+```
 
-3. **Kubernetes Secret:**
-   ```yaml
-   apiVersion: v1
-   kind: Secret
-   metadata:
-     name: mockery-git-secret
-   stringData:
-     git-access-token: ghp_your_github_personal_access_token
-   ```
-
-**Note:** The token requires `repo` scope for private repositories or `public_repo` scope for public repositories.
+**Note:** PATs require `repo` scope for private repositories or `public_repo` for public repositories.
 
 ---
 
@@ -1608,10 +1972,10 @@ src/
 │   │   ├── IMocksManagementService.cs
 │   │   └── MocksManagementService.cs
 │   ├── Repository/
-│   │   ├── IGitMockRepository.cs
+│   │   ├── IMockRepository.cs
 │   │   ├── FileSystemMockRepositoryBase.cs
-│   │   ├── GitMockRepository.cs
-│   │   └── LocalFileMockRepository.cs
+│   │   ├── LocalFileMockRepository.cs
+│   │   └── MultiRepoFileMockRepository.cs
 │   ├── Models/
 │   │   ├── MockFileResult.cs
 │   │   ├── DirectoryListingResponse.cs
@@ -1619,12 +1983,11 @@ src/
 │   │   └── DeleteMockResponse.cs
 │   ├── Services/
 │   │   ├── ContentTypeResolver.cs
-│   │   ├── MockeryMetrics.cs
-│   │   └── GitRepositoryRefreshService.cs
+│   │   └── MockeryMetrics.cs
 │   ├── Extensions/OpenTelemetryExtensions.cs
 │   ├── Configuration/
-│   │   ├── GitRepositoryOptions.cs
-│   │   └── MockRepositorySettings.cs
+│   │   ├── MockRepositorySettings.cs
+│   │   └── MultiRepoSettings.cs
 │   └── Program.cs
 ├── Mockery.Test/
 │   ├── Controllers/
@@ -1643,6 +2006,12 @@ src/
     └── test/
 ```
 
+**Removed in v5.0:**
+- ~~`Repository/IGitMockRepository.cs`~~ → Replaced by `IMockRepository.cs`
+- ~~`Repository/GitMockRepository.cs`~~ → Replaced by `MultiRepoFileMockRepository.cs`
+- ~~`Services/GitRepositoryRefreshService.cs`~~ → Replaced by Kubernetes git-sync sidecar
+- ~~`Configuration/GitRepositoryOptions.cs`~~ → Replaced by `MultiRepoSettings.cs`
+
 ---
 
 ## 13. Future Considerations
@@ -1652,22 +2021,24 @@ src/
 **Short-Term:**
 - In-memory cache for frequently accessed mocks
 - Mock file index for faster lookups
-- Webhook-triggered Git refresh
+- Webhook-triggered git-sync refresh
 
 **Medium-Term:**
-- Multiple Git repositories per service
 - Enhanced headers support
-- Mock validation on refresh
+- Mock validation on sync
 - Rate limiting middleware (if needed)
+- Health check for git-sync sidecar status
 
 **Long-Term:**
 - Mock versioning via Git tags
-- Multi-branch support
+- Multi-branch support per repository
+- Write API in production (via separate commit service)
 
 ### 13.2 Technical Debt
 
 - No in-memory caching layer
 - Permissive CORS configuration
+- ~~LibGit2Sharp native dependencies~~ (resolved in v5.0)
 
 ---
 
@@ -1676,9 +2047,11 @@ src/
 ### 14.1 External Documentation
 
 - [ASP.NET Core 9.0](https://docs.microsoft.com/aspnet/core/)
-- [LibGit2Sharp](https://github.com/libgit2/libgit2sharp)
 - [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
 - [Prometheus](https://prometheus.io/docs/)
+- [git-sync](https://github.com/kubernetes/git-sync) - Kubernetes sidecar for Git sync
+- [Kubernetes Init Containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
+- [Kubernetes Sidecar Containers](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
 
 ### 14.2 Project Files
 
@@ -1701,8 +2074,11 @@ src/
 | **Headers File** | Optional `.headers.json` file with custom HTTP headers |
 | **Status File** | `.status.json` file with status code in filename |
 | **X-Mockery-Mock** | Required request header containing mock ID(s) |
-| **Local Mode** | Development mode using local file system |
-| **Git Mode** | Production mode using Git repository |
+| **X-Mockery-Repo** | Optional request header to select repository (production mode only) |
+| **Local Mode** | Development mode using local file system (read/write) |
+| **MultiRepo Mode** | Production mode using multiple git-synced repositories (read-only) |
+| **Init Container** | Kubernetes container that runs before main container to clone Git repos |
+| **git-sync Sidecar** | Kubernetes sidecar container that periodically pulls Git changes |
 
 ---
 
@@ -1721,3 +2097,4 @@ src/
 | 3.8 | 2025-12-18 | System Architecture Team | GET /api/mocks now filters out hidden files and folders (items starting with `.` like `.git`, `.gitignore`). Total tests: 95. |
 | 3.9 | 2025-12-20 | System Architecture Team | Added multi-architecture Docker builds (linux/amd64 + linux/arm64) for cross-platform support on Windows and Apple Silicon Macs. |
 | 4.0 | 2026-01-24 | System Architecture Team | Documentation refresh: verified all components match implementation, Helm chart at v0.1.51, added .http request files for API testing, updated GitHub Copilot workspace configuration. Total tests: 95. |
+| 5.0 | 2026-01-24 | System Architecture Team | **MAJOR REFACTOR:** Removed LibGit2Sharp dependency. Production mode now uses Kubernetes init container (git clone) + git-sync sidecar (periodic pull). Added multi-repository support with `X-Mockery-Repo` header. Production mode is read-only (POST/DELETE return 501). Removed `GitMockRepository`, `GitRepositoryRefreshService`, `IGitMockRepository`, `GitRepositoryOptions`. Added `MultiRepoFileMockRepository`, `IMockRepository`, `MultiRepoSettings`. Updated Helm chart with init container and sidecar configurations. |
