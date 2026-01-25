@@ -1,7 +1,7 @@
 # Mockery - Technical Design Document
 
-**Version:** 3.9
-**Date:** 2025-12-20
+**Version:** 4.0
+**Date:** 2026-01-24
 **Author:** System Architecture Team
 **Status:** Living Document
 
@@ -163,8 +163,9 @@ Mockery follows a three-layer architecture pattern with pluggable storage:
 | Controller | Route | Authorization | Purpose |
 |------------|-------|---------------|---------|
 | `MockController` | `/api/mock` | None | Retrieve mock content by mock ID(s) |
+| `MocksController` | `/api/mocks` | None | Mock Management API (list, create, delete) |
 
-**HTTP Layer Responsibilities:**
+**MockController - HTTP Layer Responsibilities:**
 - Extract `X-Mockery-Mock` header from HTTP request
 - Parse comma-separated mock IDs into collection (e.g., `"FooBar/1234,FooBar/5678"` → `["FooBar/1234", "FooBar/5678"]`)
 - Validate header presence and format
@@ -175,10 +176,18 @@ Mockery follows a three-layer architecture pattern with pluggable storage:
 - Return file contents as HTTP response body (if applicable based on status code)
 - Handle exceptions and return appropriate HTTP status codes (400, 404, 500)
 
+**MocksController - HTTP Layer Responsibilities:**
+- **GET /api/mocks:** List directory contents at specified path (X-Mockery-Mock header optional)
+- **POST /api/mocks:** Create new mock file (path in header, content in body)
+- **DELETE /api/mocks:** Delete mock file at specified path
+- Validate header presence and format for POST/DELETE
+- Return appropriate HTTP status codes (200, 201, 400, 404, 409)
+- Delegates to `IMocksManagementService` for all operations
+
 **Separation of Concerns:**
 - **Does:** Parse HTTP headers, set HTTP responses, handle HTTP status codes
 - **Does NOT:** Contain business logic, perform random selection, access repository directly
-- **Delegates to:** `IMockService` for all business logic including status file detection
+- **Delegates to:** `IMockService` for mock retrieval, `IMocksManagementService` for mock management
 
 #### 3.2.2 Business Logic (`src/Mockery/BusinessLogic/`)
 
@@ -208,6 +217,25 @@ public interface IMockService
   - **Regular mock file found:** Return content with HTTP 200 OK
   - **No file found:** Return null (controller handles 404)
 - Handle file not found scenarios
+
+**Interface:** `IMocksManagementService`
+
+```csharp
+public interface IMocksManagementService
+{
+    Task<DirectoryListingResponse> ListDirectoryAsync(string path);
+    Task<CreateMockResponse> CreateFileAsync(string path, string content);
+    Task<DeleteMockResponse> DeleteFileAsync(string path);
+}
+```
+
+**Implementation:** `MocksManagementService`
+
+**Key Responsibilities:**
+- List directory contents within mocks folder
+- Create new mock files with validation
+- Delete mock files and clean up empty parent folders
+- Delegates Git/file operations to repository layer
 
 **Status Code Behavior Logic:**
 - **`.status.json` file found:** Extract status code from filename (e.g., `504.status.json` → 504)
@@ -240,6 +268,44 @@ public class MockFileResult
 }
 ```
 
+**DirectoryListingResponse:**
+```csharp
+public record DirectoryListingResponse
+{
+    public string Path { get; init; } = string.Empty;
+    public List<DirectoryItem> Items { get; init; } = new();
+}
+
+public record DirectoryItem
+{
+    public string Name { get; init; } = string.Empty;
+    public string Type { get; init; } = string.Empty;  // "folder" or "file"
+    public string? Extension { get; init; }
+    public long? Size { get; init; }
+}
+```
+
+**CreateMockResponse:**
+```csharp
+public record CreateMockResponse
+{
+    public string Path { get; init; } = string.Empty;
+    public string FileName { get; init; } = string.Empty;
+    public long Size { get; init; }
+    public bool CommittedToGit { get; init; }
+}
+```
+
+**DeleteMockResponse:**
+```csharp
+public record DeleteMockResponse
+{
+    public string DeletedFile { get; init; } = string.Empty;
+    public List<string> DeletedFolders { get; init; } = new();
+    public bool CommittedToGit { get; init; }
+}
+```
+
 #### 3.2.4 Repository Layer (`src/Mockery/Repository/`)
 
 **Interface:** `IGitMockRepository`
@@ -252,6 +318,13 @@ public interface IGitMockRepository
     Task<Dictionary<string, string>?> FindHeadersFileAsync(string serviceName, string fileId);
     Task<(int StatusCode, string? Content)?> FindStatusFileAsync(string serviceName, string fileId);
     Task RefreshAsync();
+    
+    // Management API methods
+    Task<DirectoryListingResponse> ListDirectoryAsync(string path);
+    Task<CreateMockResponse> CreateFileAsync(string path, string content);
+    Task<DeleteMockResponse> DeleteFileAsync(string path);
+    
+    bool IsGitMode { get; }
 }
 ```
 
@@ -284,6 +357,9 @@ Repository  MockRepository
 - Parse headers JSON files using `System.Text.Json`
 - Support file extension detection (search for `{ServiceName}/{FileId}.*` to find extension)
 - Thread-safe operations via `SemaphoreSlim`
+- List directory contents (filters out hidden files starting with `.`)
+- Create new mock files with directory creation
+- Delete mock files with empty parent folder cleanup
 
 **GitMockRepository-Specific Responsibilities:**
 - Initialize Git repository connection (LibGit2Sharp)
@@ -292,6 +368,8 @@ Repository  MockRepository
 - Pull latest changes from remote repository
 - Handle repository refresh/pull operations
 - Git credentials management for private repositories (access token)
+- **Commit and push changes** for create/delete operations
+- Use `Commands.Stage()` for new files, `Commands.Remove()` for deletions
 
 **LocalFileMockRepository-Specific Responsibilities:**
 - Verify local mocks directory exists
@@ -1292,7 +1370,8 @@ policy.AllowAnyOrigin()
 ```
 src/Mockery.Test/
 ├── Controllers/
-│   └── MockControllerTests.cs
+│   ├── MockControllerTests.cs
+│   └── MocksControllerTests.cs
 ├── Services/
 │   ├── MockServiceTests.cs
 │   ├── ContentTypeResolverTests.cs
@@ -1302,8 +1381,11 @@ src/Mockery.Test/
     └── LocalFileMockRepositoryTests.cs
 ```
 
+**Total Tests:** 95
+
 **Coverage Areas:**
 - Mock service business logic
+- Mock management service (list, create, delete)
 - Content-type resolution
 - Random selection
 - Repository file operations
@@ -1519,15 +1601,22 @@ src/
 │   ├── Controllers/MockController.cs
 │   ├── BusinessLogic/
 │   │   ├── IMockService.cs
-│   │   └── MockService.cs
+│   │   ├── MockService.cs
+│   │   ├── IMocksManagementService.cs
+│   │   └── MocksManagementService.cs
 │   ├── Repository/
 │   │   ├── IGitMockRepository.cs
 │   │   ├── FileSystemMockRepositoryBase.cs
 │   │   ├── GitMockRepository.cs
 │   │   └── LocalFileMockRepository.cs
-│   ├── Models/MockFileResult.cs
+│   ├── Models/
+│   │   ├── MockFileResult.cs
+│   │   ├── DirectoryListingResponse.cs
+│   │   ├── CreateMockResponse.cs
+│   │   └── DeleteMockResponse.cs
 │   ├── Services/
 │   │   ├── ContentTypeResolver.cs
+│   │   ├── MockeryMetrics.cs
 │   │   └── GitRepositoryRefreshService.cs
 │   ├── Extensions/OpenTelemetryExtensions.cs
 │   ├── Configuration/
@@ -1536,11 +1625,19 @@ src/
 │   └── Program.cs
 ├── Mockery.Test/
 │   ├── Controllers/
+│   │   ├── MockControllerTests.cs
+│   │   └── MocksControllerTests.cs
 │   ├── Services/
 │   └── Repository/
+├── .http/                          # HTTP request files for API testing
+│   ├── requests-local.http
+│   ├── requests-docker.http
+│   └── requests-production.http
 └── mocks/
     ├── FooBar/
-    └── Products/
+    ├── Products/
+    ├── mockery/
+    └── test/
 ```
 
 ---
@@ -1585,6 +1682,8 @@ src/
 - `README.md` - Project overview
 - `mocks/README.md` - Mock file documentation
 - `charts/mockery/` - Helm chart for Kubernetes deployment
+- `.http/` - HTTP request files for API testing
+- `.github/instructions/` - GitHub Copilot workspace instructions
 
 ---
 
@@ -1618,3 +1717,4 @@ src/
 | 3.7 | 2025-12-18 | System Architecture Team | Fixed DELETE /api/mocks Git staging - delete operations now use `Commands.Remove()` instead of `Commands.Stage()` since the file no longer exists after deletion. Total tests: 91. |
 | 3.8 | 2025-12-18 | System Architecture Team | GET /api/mocks now filters out hidden files and folders (items starting with `.` like `.git`, `.gitignore`). Total tests: 95. |
 | 3.9 | 2025-12-20 | System Architecture Team | Added multi-architecture Docker builds (linux/amd64 + linux/arm64) for cross-platform support on Windows and Apple Silicon Macs. |
+| 4.0 | 2026-01-24 | System Architecture Team | Documentation refresh: verified all components match implementation, Helm chart at v0.1.51, added .http request files for API testing, updated GitHub Copilot workspace configuration. Total tests: 95. |
